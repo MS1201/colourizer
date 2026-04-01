@@ -2,7 +2,7 @@ flask
 flask-cors
 flask-login
 werkzeug
-opencv-python
+opencv-python-headless
 numpy
 psycopg2-binary
 pyotp
