@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard | AI Image Colorizer</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { overflow-x: hidden; }
+        .admin-layout {
+            display: grid;
+            grid-template-columns: 220px 1fr;
+            min-height: calc(100vh - 5rem);
+        }
+        .admin-sidebar {
+            background: var(--bg-card);
+            border-right: 1px solid var(--border-color);
+            padding: 1.5rem 0.75rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+        .sidebar-heading {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            padding: 0.5rem 1rem;
+            margin-top: 0.75rem;
+        }
+        .sidebar-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            border-radius: 8px;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: none;
+        }
+        .sidebar-item svg { flex-shrink: 0; }
+        .sidebar-item:hover { color: var(--text-primary); background: rgba(255,255,255,0.05); }
+        .sidebar-item.active { background: rgba(139, 92, 246, 0.15); color: var(--primary-purple); font-weight: 600; }
+
+        .admin-content { padding: 2rem; overflow-y: auto; }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.25rem 1.5rem;
+            transition: border-color 0.2s;
+        }
+        .stat-card:hover { border-color: rgba(139, 92, 246, 0.3); }
+        .stat-val { font-size: 1.6rem; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
+        .stat-label { font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; }
+
+        .table-wrapper { overflow-x: auto; }
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--bg-card);
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+        .data-table th {
+            text-align: left;
+            padding: 11px 14px;
+            background: rgba(255,255,255,0.03);
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border-color);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .data-table td {
+            padding: 11px 14px;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            font-size: 0.875rem;
+            vertical-align: middle;
+        }
+        .data-table tbody tr:hover { background: rgba(255,255,255,0.02); }
+        .data-table tbody tr:last-child td { border-bottom: none; }
+
+        .badge { padding: 3px 8px; border-radius: 6px; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; }
+        .badge-admin { background: rgba(139, 92, 246, 0.2); color: #a78bfa; }
+        .badge-moderator { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
+        .badge-user { background: rgba(255,255,255,0.07); color: var(--text-secondary); }
+        .badge-banned { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+        .badge-active { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+        .badge-success { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+        .badge-failed { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+
+        .action-btn {
+            background: none;
+            border: 1px solid transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            transition: all 0.15s;
+        }
+        .action-btn:hover { color: var(--text-primary); background: rgba(255,255,255,0.08); border-color: var(--border-color); }
+        .action-btn.danger:hover { color: #f87171; border-color: rgba(239,68,68,0.3); background: rgba(239,68,68,0.08); }
+
+        .role-select {
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 0.8rem;
+            padding: 4px 8px;
+            cursor: pointer;
+        }
+        .role-select:focus { outline: none; border-color: var(--primary-purple); }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.25rem;
+        }
+        .section-title { font-size: 1.1rem; font-weight: 700; }
+        .refresh-btn {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .refresh-btn:hover { color: var(--text-primary); background: rgba(255,255,255,0.1); }
+
+        .loading-row td { text-align: center; padding: 3rem; color: var(--text-muted); }
+        .empty-row td { text-align: center; padding: 2rem; color: var(--text-muted); font-size: 0.9rem; }
+
+        .user-cell { display: flex; flex-direction: column; }
+        .user-cell-name { font-weight: 600; }
+        .user-cell-email { font-size: 0.75rem; color: var(--text-secondary); }
+
+        .alert-strip {
+            background: rgba(239,68,68,0.1);
+            border: 1px solid rgba(239,68,68,0.2);
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 0.85rem;
+            color: #f87171;
+            margin-bottom: 1rem;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="/" class="nav-brand">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
+                </svg>
+                Admin Panel
+            </a>
+            <div class="nav-tabs">
+                <a href="/colorizer" class="nav-tab">Colorize</a>
+                <a href="/dashboard" class="nav-tab">History</a>
+                <a href="/settings" class="nav-tab">Settings</a>
+                <a href="/admin" class="nav-tab active">Admin</a>
+            </div>
+            <div class="nav-right">
+                <div class="user-avatar" style="background: linear-gradient(135deg, #d946ef, #8b5cf6);">{{ user.name[0].upper() }}</div>
+                <span class="user-name">{{ user.name }}</span>
+                <a href="/logout" class="logout-link">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="app-container" style="padding-top: 5rem;">
+        <div class="admin-layout">
+            <!-- Sidebar -->
+            <div class="admin-sidebar">
+                <div class="sidebar-heading">Overview</div>
+                <div class="sidebar-item active" data-tab="users">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                    User Management
+                </div>
+                <div class="sidebar-heading">Logs</div>
+                <div class="sidebar-item" data-tab="security">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                    Security / Login Logs
+                </div>
+                <div class="sidebar-item" data-tab="activity">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    Colorization Logs
+                </div>
+                <div class="sidebar-item" data-tab="audit">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+                    Audit Log
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="admin-content">
+                <!-- Stats Row -->
+                <div class="stats-grid" id="stats-grid">
+                    <div class="stat-card"><div class="stat-val">—</div><div class="stat-label">Total Users</div></div>
+                    <div class="stat-card"><div class="stat-val">—</div><div class="stat-label">Colorizations</div></div>
+                    <div class="stat-card"><div class="stat-val">—</div><div class="stat-label">Success Rate</div></div>
+                    <div class="stat-card"><div class="stat-val">—</div><div class="stat-label">Failed Jobs</div></div>
+                </div>
+
+                <div id="alert-strip" class="alert-strip"></div>
+
+                <!-- Table Section -->
+                <div id="table-container">
+                    <div class="section-header">
+                        <span class="section-title" id="section-title">User Management</span>
+                        <button class="refresh-btn" onclick="refreshCurrent()">↻ Refresh</button>
+                    </div>
+                    <div class="table-wrapper">
+                        <table class="data-table">
+                            <thead id="table-head"></thead>
+                            <tbody id="table-body">
+                                <tr class="loading-row"><td colspan="10">Loading…</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="application/json" id="roles-data">{{ roles | tojson }}</script>
+    <script>
+        // Injected from Jinja2
+        const CSRF_TOKEN = "{{ csrf_token() }}";
+        const CURRENT_USER_ID = Number("{{ user.id }}");
+        const ROLES = JSON.parse(document.getElementById('roles-data').textContent);
+        let currentTab = 'users';
+
+        // ── HTTP helper ───────────────────────────────────────────
+        async function api(path, method = 'GET', body = null) {
+            const opts = { method, headers: { 'X-CSRF-Token': CSRF_TOKEN } };
+            if (body) {
+                opts.headers['Content-Type'] = 'application/json';
+                opts.body = JSON.stringify(body);
+            }
+            try {
+                const res = await fetch(path, opts);
+                const json = await res.json();
+                if (!res.ok) { showAlert(json.error || 'Request failed'); return null; }
+                return json;
+            } catch(e) { showAlert('Network error: ' + e.message); return null; }
+        }
+
+        function showAlert(msg) {
+            const el = document.getElementById('alert-strip');
+            el.textContent = msg;
+            el.style.display = 'block';
+            setTimeout(() => el.style.display = 'none', 5000);
+        }
+
+        function esc(s) {
+            const d = document.createElement('div');
+            d.textContent = String(s || '');
+            return d.innerHTML;
+        }
+
+        // ── Stats ─────────────────────────────────────────────────
+        async function loadStats() {
+            const data = await api('/admin/api/stats');
+            if (!data) return;
+            document.getElementById('stats-grid').innerHTML = `
+                <div class="stat-card"><div class="stat-val">${data.total_users ?? 0}</div><div class="stat-label">Total Users</div></div>
+                <div class="stat-card"><div class="stat-val">${data.total_colorizations ?? 0}</div><div class="stat-label">Colorizations</div></div>
+                <div class="stat-card"><div class="stat-val">${data.success_rate ?? 0}%</div><div class="stat-label">Success Rate</div></div>
+                <div class="stat-card"><div class="stat-val">${data.total_failed ?? 0}</div><div class="stat-label">Failed Jobs</div></div>
+            `;
+        }
+
+        // ── Users tab ─────────────────────────────────────────────
+        async function renderUsers() {
+            document.getElementById('section-title').textContent = 'User Management';
+            const users = await api('/admin/api/users');
+            const head = document.getElementById('table-head');
+            const body = document.getElementById('table-body');
+
+            head.innerHTML = `<tr><th>User</th><th>Role</th><th>MFA</th><th>Credits</th><th>Images</th><th>Status</th><th>Actions</th></tr>`;
+
+            if (!users || !users.length) {
+                body.innerHTML = `<tr class="empty-row"><td colspan="7">No users found.</td></tr>`;
+                return;
+            }
+
+            body.innerHTML = users.map(u => {
+                const roleOpts = ROLES.map(r =>
+                    `<option value="${r.name}" ${u.role === r.name ? 'selected' : ''}>${r.name}</option>`
+                ).join('');
+                const isSelf = u.id === CURRENT_USER_ID;
+                const statusBadge = u.is_banned
+                    ? `<span class="badge badge-banned">Banned</span>`
+                    : `<span class="badge badge-active">Active</span>`;
+                return `<tr>
+                    <td><div class="user-cell"><span class="user-cell-name">${esc(u.name)}</span><span class="user-cell-email">${esc(u.email)}</span></div></td>
+                    <td>
+                        <select class="role-select" onchange="changeRole(${u.id}, this.value)" ${isSelf ? 'disabled title="Cannot change your own role"' : ''}>
+                            ${roleOpts}
+                        </select>
+                    </td>
+                    <td>${u.mfa_enabled ? '🔐 On' : '🔓 Off'}</td>
+                    <td>${u.credits ?? 100}</td>
+                    <td>${u.total_images ?? 0}</td>
+                    <td>${statusBadge}</td>
+                    <td>
+                        ${isSelf ? '—' : `
+                            <button class="action-btn" onclick="toggleBan(${u.id})" title="${u.is_banned ? 'Unban' : 'Ban'} user">
+                                ${u.is_banned ? '✅ Unban' : '🚫 Ban'}
+                            </button>
+                            <button class="action-btn danger" onclick="deleteUser(${u.id})" title="Delete user">🗑️</button>
+                        `}
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        // ── Security Logs tab ─────────────────────────────────────
+        async function renderSecurity() {
+            document.getElementById('section-title').textContent = 'Security Logs — Login Attempts';
+            const data = await api('/admin/api/security');
+            const head = document.getElementById('table-head');
+            const body = document.getElementById('table-body');
+
+            head.innerHTML = `<tr><th>Timestamp</th><th>Email</th><th>IP Address</th><th>Result</th><th>Type</th></tr>`;
+
+            if (!data || !data.length) {
+                body.innerHTML = `<tr class="empty-row"><td colspan="5">No login attempts recorded yet.</td></tr>`;
+                return;
+            }
+
+            body.innerHTML = data.map(a => `<tr>
+                <td>${new Date(a.attempted_at).toLocaleString()}</td>
+                <td>${esc(a.email || 'N/A')}</td>
+                <td>${esc(a.ip_address)}</td>
+                <td>${a.success
+                    ? `<span class="badge badge-success">✓ Success</span>`
+                    : `<span class="badge badge-failed">✗ Failed</span>`}</td>
+                <td>${a.mfa_attempt ? '🔐 MFA' : '🔑 Password'}</td>
+            </tr>`).join('');
+        }
+
+        // ── Colorization Activity tab ─────────────────────────────
+        async function renderActivity() {
+            document.getElementById('section-title').textContent = 'Colorization Activity';
+            const data = await api('/admin/api/logs');
+            const head = document.getElementById('table-head');
+            const body = document.getElementById('table-body');
+
+            head.innerHTML = `<tr><th>Timestamp</th><th>User ID</th><th>File</th><th>Size (KB)</th><th>Time (s)</th><th>Quality</th><th>Status</th></tr>`;
+
+            if (!data || !data.length) {
+                body.innerHTML = `<tr class="empty-row"><td colspan="7">No colorization logs yet.</td></tr>`;
+                return;
+            }
+
+            body.innerHTML = data.slice(0, 100).map(l => `<tr>
+                <td>${new Date(l.timestamp).toLocaleString()}</td>
+                <td>${esc(l.user_id)}</td>
+                <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(l.original_filename)}</td>
+                <td>${(l.file_size_kb ?? 0).toFixed(1)}</td>
+                <td>${(l.processing_time_seconds ?? 0).toFixed(2)}</td>
+                <td>${l.quality_score ?? '—'}</td>
+                <td><span class="badge badge-${l.status === 'success' ? 'success' : 'failed'}">${esc(l.status)}</span></td>
+            </tr>`).join('');
+        }
+
+        // ── Audit Log tab ─────────────────────────────────────────
+        async function renderAudit() {
+            document.getElementById('section-title').textContent = 'Admin Audit Log';
+            const data = await api('/admin/api/audit');
+            const head = document.getElementById('table-head');
+            const body = document.getElementById('table-body');
+
+            head.innerHTML = `<tr><th>Timestamp</th><th>Admin</th><th>Action</th><th>Target User ID</th><th>Details</th></tr>`;
+
+            if (!data || !data.length) {
+                body.innerHTML = `<tr class="empty-row"><td colspan="5">No admin actions recorded yet.</td></tr>`;
+                return;
+            }
+
+            body.innerHTML = data.map(a => `<tr>
+                <td>${new Date(a.performed_at).toLocaleString()}</td>
+                <td>${esc(a.admin_id)}</td>
+                <td><code style="background:rgba(255,255,255,0.06);padding:2px 6px;border-radius:4px;">${esc(a.action)}</code></td>
+                <td>${a.target_user_id ?? '—'}</td>
+                <td>${esc(a.details || '—')}</td>
+            </tr>`).join('');
+        }
+
+        // ── Action handlers ───────────────────────────────────────
+        window.toggleBan = async (id) => {
+            const res = await api(`/admin/api/users/${id}/ban`, 'POST');
+            if (res) renderUsers();
+        };
+
+        window.deleteUser = async (id) => {
+            if (!confirm('Permanently delete this user and all their data?')) return;
+            const res = await api(`/admin/api/users/${id}/delete`, 'POST');
+            if (res && res.success) renderUsers();
+        };
+
+        window.changeRole = async (id, role) => {
+            const res = await api(`/admin/api/users/${id}/role`, 'POST', { role });
+            if (res && res.success) renderUsers();
+        };
+
+        function refreshCurrent() {
+            if (currentTab === 'users')    renderUsers();
+            if (currentTab === 'security') renderSecurity();
+            if (currentTab === 'activity') renderActivity();
+            if (currentTab === 'audit')    renderAudit();
+            loadStats();
+        }
+
+        // ── Tab switching ─────────────────────────────────────────
+        document.querySelectorAll('.sidebar-item').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.sidebar-item').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                currentTab = tab.dataset.tab;
+
+                document.getElementById('table-body').innerHTML =
+                    `<tr class="loading-row"><td colspan="10">Loading…</td></tr>`;
+
+                if (currentTab === 'users')    renderUsers();
+                if (currentTab === 'security') renderSecurity();
+                if (currentTab === 'activity') renderActivity();
+                if (currentTab === 'audit')    renderAudit();
+            });
+        });
+
+        // ── Bootstrap ─────────────────────────────────────────────
+        loadStats();
+        renderUsers();
+    </script>
+</body>
+</html>

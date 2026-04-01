@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setup MFA | AI Image Colorizer</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .qr-container {
+            background: white;
+            padding: 15px;
+            border-radius: 12px;
+            display: inline-block;
+            margin: 20px 0;
+        }
+        .secret-box {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 10px;
+            border-radius: 6px;
+            font-family: monospace;
+            border: 1px solid var(--border-color);
+            margin-bottom: 20px;
+            word-break: break-all;
+            user-select: all;
+        }
+        .setup-steps {
+            text-align: left;
+            margin-bottom: 20px;
+        }
+        .setup-steps ol {
+            padding-left: 20px;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+        .setup-steps li {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body class="auth-page">
+    <div class="auth-container">
+        <div class="auth-card">
+            <div class="auth-logo">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                </svg>
+                <h1>Protect Your Account</h1>
+            </div>
+
+            <div class="auth-header">
+                <h2>Setup Two-Factor</h2>
+                <p>Enhance your account security using TOTP.</p>
+            </div>
+
+            {% if error %}
+            <div class="auth-message error">
+                <span>{{ error }}</span>
+            </div>
+            {% endif %}
+
+            <div class="setup-steps">
+                <ol>
+                    <li>Scan this QR code with Google Authenticator or Authy.</li>
+                    <li>Or enter this secret key manually:</li>
+                </ol>
+            </div>
+
+            <div class="qr-container">
+                <img src="data:image/png;base64,{{ qr_b64 }}" alt="QR Code" width="180" height="180">
+            </div>
+
+            <div class="secret-box">
+                {{ secret }}
+            </div>
+
+            <form class="auth-form" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="form-group">
+                    <label for="code">Enter 6-digit code to verify</label>
+                    <input type="text" id="code" name="code" placeholder="000000" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Enable MFA</button>
+            </form>
+
+            <div class="auth-footer">
+                <p><a href="/settings">Back to Settings</a></p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

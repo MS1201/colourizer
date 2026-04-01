@@ -14,3 +14,9 @@ checkpoints/
 outputs/
 *.log
 .DS_Store
+
+# Large model files
+*.caffemodel
+*.pt
+*.pth
+*.h5

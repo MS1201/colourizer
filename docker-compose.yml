@@ -1,0 +1,15 @@
+version: "3.9"
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: colourizer-db
+    environment:
+      POSTGRES_USER: colour_user
+      POSTGRES_PASSWORD: colour_pass
+      POSTGRES_DB: colourizer
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+volumes:
+  pgdata:

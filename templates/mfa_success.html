@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MFA Enabled | AI Image Colorizer</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .backup-codes-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 20px;
+            border-radius: 12px;
+            margin: 20px 0;
+            border: 1px solid var(--border-color);
+        }
+        .backup-code {
+            font-family: monospace;
+            font-size: 1.1rem;
+            color: var(--primary-purple);
+            letter-spacing: 1px;
+        }
+        .warning-box {
+            background: rgba(255, 152, 0, 0.1);
+            border-left: 4px solid #ff9800;
+            padding: 12px;
+            margin-bottom: 20px;
+            text-align: left;
+            font-size: 0.85rem;
+            color: #ffb74d;
+        }
+    </style>
+</head>
+<body class="auth-page">
+    <div class="auth-container">
+        <div class="auth-card">
+            <div class="auth-logo">
+                <div class="upload-icon-wrapper" style="width: 60px; height: 60px; margin-bottom: 10px; color: var(--success); background: rgba(16, 185, 129, 0.1);">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                </div>
+                <h1>Success!</h1>
+            </div>
+
+            <div class="auth-header">
+                <h2>MFA is Active</h2>
+                <p>Your account is now protected with two-factor authentication.</p>
+            </div>
+
+            <div class="warning-box">
+                <strong>IMPORTANT:</strong> Save these backup codes! They are the ONLY way to access your account if you lose your phone.
+            </div>
+
+            <div class="backup-codes-grid">
+                {% for code in backup_codes %}
+                <div class="backup-code">{{ code }}</div>
+                {% endfor %}
+            </div>
+
+            <a href="/colorizer" class="btn btn-primary btn-block">Continue to App</a>
+            
+            <div class="auth-footer">
+                <p><a href="javascript:window.print()">Print codes</a></p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
