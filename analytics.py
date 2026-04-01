@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Database connection string
-DB_URI = os.getenv("DB_URI", "postgresql://postgres:0000@localhost:5432/colourizer")
+DB_URI = os.getenv("DB_URI", os.getenv("DATABASE_URL", "postgresql://postgres:0000@localhost:5432/colourizer"))
 
 
 @contextmanager

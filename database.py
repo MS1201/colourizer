@@ -6,8 +6,9 @@ PostgreSQL (Supabase) backend — replaces SQLite
 import os
 import psycopg2
 from psycopg2.extras import RealDictCursor
-DB_URI = os.getenv("DB_URI", "postgresql://postgres:0000@localhost:5432/colourizer")
-
+from dotenv import load_dotenv
+load_dotenv()
+DB_URI = os.getenv("DB_URI", os.getenv("DATABASE_URL", "postgresql://postgres:0000@localhost:5432/colourizer"))
 # Database connection string
 # Password 'Dhruvil-@11' is URL encoded to 'Dhruvil-%4011' to handle the '@' symbol
 
