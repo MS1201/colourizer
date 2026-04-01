@@ -21,41 +21,46 @@ def get_db_connection():
 
 def init_db():
     """Initialize all required tables"""
-    conn = get_db_connection()
     try:
-        with conn.cursor() as cursor:
-            # Users table
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS users (
-                    id SERIAL PRIMARY KEY,
-                    email TEXT UNIQUE NOT NULL,
-                    name TEXT NOT NULL,
-                    password_hash TEXT NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    credits INTEGER DEFAULT 100,
-                    plan TEXT DEFAULT 'FREE'
-                )
-            ''')
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cursor:
+                # Users table
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS users (
+                        id SERIAL PRIMARY KEY,
+                        email TEXT UNIQUE NOT NULL,
+                        name TEXT NOT NULL,
+                        password_hash TEXT NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        credits INTEGER DEFAULT 100,
+                        plan TEXT DEFAULT 'FREE'
+                    )
+                ''')
 
-            # History table
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS history (
-                    id SERIAL PRIMARY KEY,
-                    user_id INTEGER NOT NULL REFERENCES users(id),
-                    original_filename TEXT NOT NULL,
-                    filename TEXT NOT NULL,
-                    width INTEGER,
-                    height INTEGER,
-                    processing_time REAL,
-                    quality_score REAL,
-                    status TEXT,
-                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
+                # History table
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS history (
+                        id SERIAL PRIMARY KEY,
+                        user_id INTEGER NOT NULL REFERENCES users(id),
+                        original_filename TEXT NOT NULL,
+                        filename TEXT NOT NULL,
+                        width INTEGER,
+                        height INTEGER,
+                        processing_time REAL,
+                        quality_score REAL,
+                        status TEXT,
+                        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
 
-        conn.commit()
-    finally:
-        conn.close()
+            conn.commit()
+        finally:
+            conn.close()
+    except psycopg2.OperationalError as e:
+        print(f"⚠️ DATABASE WARNING: Could not connect to database on port 5432 during initialization. Skipping table creation! Error: {e}")
+    except Exception as e:
+        print(f"⚠️ DATABASE ERROR: {e}")
 
 
 if __name__ == '__main__':

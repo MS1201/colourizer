@@ -29,39 +29,44 @@ def get_db_connection():
 
 def init_database():
     """Initialize the analytics database with required tables"""
-    with get_db_connection() as conn:
-        with conn.cursor() as cursor:
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS colorization_logs (
-                    id SERIAL PRIMARY KEY,
-                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    user_id INTEGER REFERENCES users(id),
-                    original_filename TEXT,
-                    image_width INTEGER,
-                    image_height INTEGER,
-                    file_size_kb REAL,
-                    processing_time_seconds REAL,
-                    quality_score REAL,
-                    status TEXT,
-                    error_message TEXT
-                )
-            ''')
-        # Commit the CREATE TABLE so it's not rolled back if the ALTER fails
-        conn.commit()
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS colorization_logs (
+                        id SERIAL PRIMARY KEY,
+                        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        user_id INTEGER REFERENCES users(id),
+                        original_filename TEXT,
+                        image_width INTEGER,
+                        image_height INTEGER,
+                        file_size_kb REAL,
+                        processing_time_seconds REAL,
+                        quality_score REAL,
+                        status TEXT,
+                        error_message TEXT
+                    )
+                ''')
+            # Commit the CREATE TABLE so it's not rolled back if the ALTER fails
+            conn.commit()
 
-        # Migration: Add user_id and filename columns if they don't exist
-        with conn.cursor() as cursor:
-            try:
-                cursor.execute('ALTER TABLE colorization_logs ADD COLUMN user_id INTEGER REFERENCES users(id)')
-                conn.commit()
-            except psycopg2.Error:
-                conn.rollback()
-            
-            try:
-                cursor.execute('ALTER TABLE colorization_logs ADD COLUMN filename TEXT')
-                conn.commit()
-            except psycopg2.Error:
-                conn.rollback()
+            # Migration: Add user_id and filename columns if they don't exist
+            with conn.cursor() as cursor:
+                try:
+                    cursor.execute('ALTER TABLE colorization_logs ADD COLUMN user_id INTEGER REFERENCES users(id)')
+                    conn.commit()
+                except psycopg2.Error:
+                    conn.rollback()
+                
+                try:
+                    cursor.execute('ALTER TABLE colorization_logs ADD COLUMN filename TEXT')
+                    conn.commit()
+                except psycopg2.Error:
+                    conn.rollback()
+    except psycopg2.OperationalError as e:
+        print(f"⚠️ DATABASE WARNING: Could not connect to database during startup. Is DATABASE_URL set correctly? Continuing app boot... Error details: {e}")
+    except Exception as e:
+        print(f"⚠️ DATABASE ERROR: {e}")
 
 
 def log_colorization(original_filename, filename, image_width, image_height, file_size_kb,
