@@ -4,7 +4,7 @@ services:
     env: python
     region: ohio
     plan: free
-    buildCommand: "pip install -r requirements.txt"
+    buildCommand: "pip install -r requirements.txt && python download_models.py"
     startCommand: "python app.py"
     envVars:
       - key: DATABASE_URL
