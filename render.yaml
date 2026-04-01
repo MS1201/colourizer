@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: colourizer-ai-app
+    env: python
+    region: ohio
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python app.py"
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: colourizer-db
+          property: connectionString
+      - key: PYTHON_VERSION
+        value: 3.11.0
+
+databases:
+  - name: colourizer-db
+    databaseName: colourizer
+    user: colourizer_admin
+    plan: free
+    region: ohio
