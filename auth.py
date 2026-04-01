@@ -130,10 +130,13 @@ def permission_required(permission: str):
     def decorator(f):
         @wraps(f)
         def decorated(*args, **kwargs):
+            is_api = request.path.startswith("/admin/api") or request.is_json or request.path == "/upload"
             if not current_user.is_authenticated:
+                if is_api:
+                    return jsonify({"error": "Unauthorized: Session expired. Please log in again."}), 401
                 return redirect(url_for("login"))
             if not has_permission(current_user, permission):
-                if request.path.startswith("/admin/api") or request.is_json:
+                if is_api:
                     return jsonify({"error": "Forbidden: insufficient permissions"}), 403
                 return redirect(url_for("colorizer"))
             return f(*args, **kwargs)
@@ -145,10 +148,13 @@ def admin_required(f):
     """Convenience decorator — requires admin role."""
     @wraps(f)
     def decorated(*args, **kwargs):
+        is_api = request.path.startswith("/admin/api") or request.is_json or request.path == "/upload"
         if not current_user.is_authenticated:
+            if is_api:
+                return jsonify({"error": "Unauthorized: Session expired"}), 401
             return redirect(url_for("login"))
         if not has_permission(current_user, "manage_users"):
-            if request.path.startswith("/admin/api") or request.is_json:
+            if is_api:
                 return jsonify({"error": "Forbidden: Admin access required"}), 403
             return redirect(url_for("colorizer"))
         return f(*args, **kwargs)

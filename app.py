@@ -87,8 +87,8 @@ def security_checks():
     # 2. Check CSRF on state-changing requests
     if request.method in ["POST", "PUT", "DELETE", "PATCH"]:
         if not validate_csrf_token():
-            if request.is_json:
-                return jsonify({"error": "Invalid CSRF token"}), 400
+            if request.is_json or request.path == "/upload":
+                return jsonify({"error": "Invalid CSRF token. Please refresh the page."}), 400
             error = "Session expired or invalid form submission. Please try again."
             if request.endpoint == "login":
                 return render_template("login.html", error=error, captcha_question=generate_captcha())
@@ -100,7 +100,13 @@ def security_checks():
     if current_user.is_authenticated:
         if not validate_session_fingerprint():
             logout_user()
+            if request.is_json or request.path == "/upload":
+                return jsonify({"error": "Session hijacked or network changed."}), 401
             return redirect(url_for("login", error="Session hijacked or network changed."))
+
+@app.errorhandler(413)
+def request_entity_too_large(error):
+    return jsonify({"error": "File too large. Maximum size is 16MB."}), 413
 
 
 @app.after_request
