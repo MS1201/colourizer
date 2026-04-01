@@ -39,7 +39,7 @@ except ImportError:
 # ------------------------------------------------------------------
 # Database
 # ------------------------------------------------------------------
-DB_URI = os.getenv("DB_URI", "postgresql://postgres:0000@localhost:5432/colourizer")
+DB_URI = os.getenv("DB_URI", os.getenv("DATABASE_URL", "postgresql://postgres:0000@localhost:5432/colourizer"))
 
 login_manager = LoginManager()
 
@@ -229,95 +229,100 @@ def load_user(user_id):
 # Database Init / Migrations
 # ------------------------------------------------------------------
 def init_db():
-    conn = get_db_connection()
     try:
-        with conn.cursor() as cur:
-            # Users table
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS users (
-                    id SERIAL PRIMARY KEY,
-                    email TEXT UNIQUE NOT NULL,
-                    name TEXT NOT NULL,
-                    password_hash TEXT NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    credits INTEGER DEFAULT 100,
-                    plan TEXT DEFAULT 'FREE',
-                    is_admin BOOLEAN DEFAULT FALSE,
-                    is_banned BOOLEAN DEFAULT FALSE,
-                    role TEXT DEFAULT 'user',
-                    mfa_enabled BOOLEAN DEFAULT FALSE,
-                    mfa_secret TEXT,
-                    backup_codes TEXT
-                )
-            """)
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cur:
+                # Users table
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS users (
+                        id SERIAL PRIMARY KEY,
+                        email TEXT UNIQUE NOT NULL,
+                        name TEXT NOT NULL,
+                        password_hash TEXT NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        credits INTEGER DEFAULT 100,
+                        plan TEXT DEFAULT 'FREE',
+                        is_admin BOOLEAN DEFAULT FALSE,
+                        is_banned BOOLEAN DEFAULT FALSE,
+                        role TEXT DEFAULT 'user',
+                        mfa_enabled BOOLEAN DEFAULT FALSE,
+                        mfa_secret TEXT,
+                        backup_codes TEXT
+                    )
+                """)
 
-            # Login attempts (rate limiting + security log)
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS login_attempts (
-                    id SERIAL PRIMARY KEY,
-                    ip_address TEXT NOT NULL,
-                    email TEXT,
-                    attempted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    success INTEGER DEFAULT 0,
-                    mfa_attempt BOOLEAN DEFAULT FALSE
-                )
-            """)
+                # Login attempts (rate limiting + security log)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS login_attempts (
+                        id SERIAL PRIMARY KEY,
+                        ip_address TEXT NOT NULL,
+                        email TEXT,
+                        attempted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        success INTEGER DEFAULT 0,
+                        mfa_attempt BOOLEAN DEFAULT FALSE
+                    )
+                """)
 
-            # Admin audit log
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS admin_actions (
-                    id SERIAL PRIMARY KEY,
-                    admin_id INTEGER REFERENCES users(id),
-                    action TEXT NOT NULL,
-                    target_user_id INTEGER,
-                    details TEXT,
-                    performed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
+                # Admin audit log
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS admin_actions (
+                        id SERIAL PRIMARY KEY,
+                        admin_id INTEGER REFERENCES users(id),
+                        action TEXT NOT NULL,
+                        target_user_id INTEGER,
+                        details TEXT,
+                        performed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
 
-            # History table (Still used in app.py)
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS history (
-                    id SERIAL PRIMARY KEY,
-                    user_id INTEGER REFERENCES users(id),
-                    original_filename TEXT,
-                    filename TEXT,
-                    width INTEGER,
-                    height INTEGER,
-                    processing_time REAL,
-                    quality_score REAL,
-                    status TEXT,
-                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
+                # History table (Still used in app.py)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS history (
+                        id SERIAL PRIMARY KEY,
+                        user_id INTEGER REFERENCES users(id),
+                        original_filename TEXT,
+                        filename TEXT,
+                        width INTEGER,
+                        height INTEGER,
+                        processing_time REAL,
+                        quality_score REAL,
+                        status TEXT,
+                        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
 
-            # Migrations — safe ADD COLUMN IF NOT EXISTS
-            migrations = [
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS credits INTEGER DEFAULT 100",
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS plan TEXT DEFAULT 'FREE'",
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE",
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_banned BOOLEAN DEFAULT FALSE",
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user'",
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_enabled BOOLEAN DEFAULT FALSE",
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_secret TEXT",
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS backup_codes TEXT",
-                "ALTER TABLE login_attempts ADD COLUMN IF NOT EXISTS mfa_attempt BOOLEAN DEFAULT FALSE",
-            ]
-            for sql in migrations:
-                try:
-                    cur.execute(sql)
-                except Exception:
-                    conn.rollback()
+                # Migrations — safe ADD COLUMN IF NOT EXISTS
+                migrations = [
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS credits INTEGER DEFAULT 100",
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS plan TEXT DEFAULT 'FREE'",
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE",
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_banned BOOLEAN DEFAULT FALSE",
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user'",
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_enabled BOOLEAN DEFAULT FALSE",
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_secret TEXT",
+                    "ALTER TABLE users ADD COLUMN IF NOT EXISTS backup_codes TEXT",
+                    "ALTER TABLE login_attempts ADD COLUMN IF NOT EXISTS mfa_attempt BOOLEAN DEFAULT FALSE",
+                ]
+                for sql in migrations:
+                    try:
+                        cur.execute(sql)
+                    except Exception:
+                        conn.rollback()
 
-            # Sync role field with is_admin for existing rows
-            cur.execute("""
-                UPDATE users SET role = 'admin'
-                WHERE is_admin = TRUE AND (role IS NULL OR role = 'user')
-            """)
+                # Sync role field with is_admin for existing rows
+                cur.execute("""
+                    UPDATE users SET role = 'admin'
+                    WHERE is_admin = TRUE AND (role IS NULL OR role = 'user')
+                """)
 
-        conn.commit()
-    finally:
-        conn.close()
+            conn.commit()
+        finally:
+            conn.close()
+    except psycopg2.OperationalError as e:
+        print(f"⚠️ AUTH DATABASE WARNING: Could not connect to database on startup. Error: {e}")
+    except Exception as e:
+        print(f"⚠️ AUTH DATABASE ERROR: {e}")
 
 
 # ------------------------------------------------------------------
