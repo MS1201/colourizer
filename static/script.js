@@ -92,11 +92,7 @@ async function processFile(file) {
         return;
     }
 
-    // Validate file size (max 16MB)
-    if (file.size > 16 * 1024 * 1024) {
-        showError('File too large. Maximum size is 16MB.');
-        return;
-    }
+    // No client-side size limit — server accepts any size image
 
     currentOriginalFile = file;
 
@@ -120,7 +116,15 @@ async function processFile(file) {
             body: formData
         });
 
-        const data = await response.json();
+        // Safely parse JSON — server always returns JSON, but guard against proxy errors (HTML pages)
+        let data;
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+            data = await response.json();
+        } else {
+            const text = await response.text();
+            throw new Error(`Unexpected server response (${response.status}): ${text.substring(0, 200)}`);
+        }
 
         if (!response.ok) {
             throw new Error(data.error || 'Colorization failed');

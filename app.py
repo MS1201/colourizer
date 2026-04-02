@@ -56,7 +56,7 @@ os.makedirs(COLORIZED_FOLDER, exist_ok=True)
 # Initialize Flask app
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+# MAX_CONTENT_LENGTH intentionally not set — users can upload images of any size
 app.config['SECRET_KEY'] = os.getenv("SECRET_KEY", "dev_secret_key_change_in_production_12345")
 
 # Initialize Flask-Login
@@ -106,7 +106,7 @@ def security_checks():
 
 @app.errorhandler(413)
 def request_entity_too_large(error):
-    return jsonify({"error": "File too large. Maximum size is 16MB."}), 413
+    return jsonify({"error": "File too large. Your server or proxy has a size limit — please contact the administrator."}), 413
 
 
 @app.after_request
