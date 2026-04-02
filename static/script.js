@@ -102,12 +102,19 @@ async function processFile(file) {
     if (processingSection) processingSection.classList.remove('hidden');
 
     try {
+        // Retrieve CSRF token
+        const csrfTokenElement = document.querySelector('meta[name="csrf-token"]');
+        if (!csrfTokenElement) {
+            throw new Error('CSRF security token missing from page. Please reload.');
+        }
+        const csrfToken = csrfTokenElement.content;
+
         // Create form data
         const formData = new FormData();
         formData.append('file', file);
+        formData.append('csrf_token', csrfToken); // Add session CSRF token to form body too
 
         // Upload and colorize
-        const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
         const response = await fetch('/upload', {
             method: 'POST',
             headers: {
@@ -123,11 +130,11 @@ async function processFile(file) {
             data = await response.json();
         } else {
             const text = await response.text();
-            throw new Error(`Unexpected server response (${response.status}): ${text.substring(0, 200)}`);
+            throw new Error(`Proxy error (${response.status}): ${text.substring(0, 100) || 'Unknown error response'}`);
         }
 
         if (!response.ok) {
-            throw new Error(data.error || 'Colorization failed');
+            throw new Error(data.error || 'Server rejected the image');
         }
 
         // Success - show results
@@ -135,7 +142,7 @@ async function processFile(file) {
 
         // Set images
         if (originalImage) originalImage.src = URL.createObjectURL(file);
-        if (colorizedImage) colorizedImage.src = `/static/results/${data.filename}?t=${Date.now()}`;
+        if (colorizedImage) colorizedImage.src = `${window.location.origin}/static/results/${data.filename}?t=${Date.now()}`;
 
         // Update stats
         if (statTime) statTime.textContent = data.processing_time || '2.1s';
@@ -150,7 +157,12 @@ async function processFile(file) {
         if (resultsSection) resultsSection.classList.remove('hidden');
 
     } catch (error) {
-        showError(error.message);
+        console.error('Upload error:', error);
+        if (error.message.includes('fetch')) {
+            showError('Network Error: The server did not respond or the file is too large for your connection.');
+        } else {
+            showError(error.message);
+        }
         resetUpload();
     }
 }

@@ -65,15 +65,10 @@ def main():
     print("="*60)
     if success_count == len(FILES):
         print("All model files are ready!")
-        print("\nYou can now run the application:")
-        print("  python app.py")
+        sys.exit(0)
     else:
         print(f"{len(FILES) - success_count} file(s) failed to download")
-        print("\nPlease try downloading manually from:")
-        for filename, url in FILES.items():
-            filepath = os.path.join(MODEL_DIR, filename)
-            if not os.path.exists(filepath):
-                print(f"  - {url}")
+        sys.exit(1)
     print("="*60 + "\n")
 
 
