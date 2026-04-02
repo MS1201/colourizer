@@ -1,7 +1,7 @@
 """
 Image Colorization Module
-
-
+Uses OpenCV's pre-trained deep learning model to colorize grayscale images
+"""
 import cv2
 import numpy as np
 import os
