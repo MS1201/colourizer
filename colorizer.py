@@ -1,7 +1,6 @@
 """
 Image Colorization Module
-Uses OpenCV's pre-trained deep learning model to colorize grayscale images
-"""
+
 
 import cv2
 import numpy as np
@@ -23,7 +22,6 @@ class ImageColorizer:
         self._load_model()
     
     def _load_model(self):
-        """Load the pre-trained colorization model"""
         if not os.path.exists(PROTOTXT_PATH):
             raise FileNotFoundError(f"Prototxt file not found: {PROTOTXT_PATH}")
         if not os.path.exists(CAFFEMODEL_PATH):
@@ -57,18 +55,24 @@ class ImageColorizer:
         if image is None:
             raise ValueError(f"Could not read image: {image_path}")
             
-        # Optimization: Downscale huge images to max 1000px to speed up array operations
+        # 1. IMMEDIATE DOWNSCALE (Prevent OOM on large files)
+        # AI works on 224x224 anyway; keeping >1000px wastes RAM on Free Tier.
         max_dim = 1000
         h, w = image.shape[:2]
         if max(h, w) > max_dim:
             scale = max_dim / max(h, w)
             image = cv2.resize(image, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
         
-        # Convert to float and normalize
-        image = image.astype(np.float32) / 255.0
-        
-        # Convert to LAB color space
-        lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
+        # 2. CONVERT TO FLOAT
+        import gc
+        image_float = image.astype(np.float32) / 255.0
+        del image # Free original uint8 image
+        gc.collect()
+
+        # 3. CONVERT TO LAB color space
+        lab = cv2.cvtColor(image_float, cv2.COLOR_BGR2LAB)
+        del image_float # Free float BGR
+        gc.collect()
         
         # Extract L channel and resize for network input
         L = lab[:, :, 0]
@@ -78,16 +82,22 @@ class ImageColorizer:
         # Pass through network
         self.net.setInput(cv2.dnn.blobFromImage(L_resized))
         ab = self.net.forward()[0, :, :, :].transpose((1, 2, 0))
-        
-        # Resize ab channels to original size
-        ab = cv2.resize(ab, (image.shape[1], image.shape[0]))
+        ab = cv2.resize(ab, (L.shape[1], L.shape[0]))
         
         # Combine L and predicted ab channels
-        L = lab[:, :, 0:1]
-        colorized_lab = np.concatenate([L, ab], axis=2)
+        L_exp = L[:, :, np.newaxis]
+        colorized_lab = np.concatenate([L_exp, ab], axis=2)
+        
+        # Free memory-intensive arrays before finishing
+        del ab
+        del lab
+        gc.collect()
         
         # Convert back to BGR
         colorized = cv2.cvtColor(colorized_lab, cv2.COLOR_LAB2BGR)
+        del colorized_lab
+        gc.collect()
+        
         colorized = np.clip(colorized, 0, 1)
         colorized = (colorized * 255).astype(np.uint8)
         
