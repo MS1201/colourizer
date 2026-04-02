@@ -56,7 +56,7 @@ os.makedirs(COLORIZED_FOLDER, exist_ok=True)
 # Initialize Flask app
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-# MAX_CONTENT_LENGTH intentionally not set — users can upload images of any size
+app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB max file size (effectively unlimited for photos)
 app.config['SECRET_KEY'] = os.getenv("SECRET_KEY", "dev_secret_key_change_in_production_12345")
 
 # Initialize Flask-Login
