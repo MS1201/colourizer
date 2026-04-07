@@ -9,3 +9,6 @@ pyotp
 qrcode
 Pillow
 python-dotenv
+requests
+gunicorn
+psutil

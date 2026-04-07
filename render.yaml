@@ -5,7 +5,10 @@ services:
     region: ohio
     plan: free
     buildCommand: "pip install -r requirements.txt && python download_models.py"
-    startCommand: "python app.py"
+    # Single worker = model loaded once (~125 MB).
+    # 2 threads handle concurrent requests within the same process (shared memory).
+    # 180s timeout for large images on slow free-tier CPU.
+    startCommand: "gunicorn --workers 1 --threads 2 --timeout 180 --bind 0.0.0.0:$PORT app:app"
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -13,6 +16,8 @@ services:
           property: connectionString
       - key: PYTHON_VERSION
         value: 3.11.0
+      - key: COLORIZER_MODEL_DIR
+        value: /opt/render/project/src/models
 
 databases:
   - name: colourizer-db

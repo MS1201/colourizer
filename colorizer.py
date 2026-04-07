@@ -1,155 +1,205 @@
 """
-Image Colorization Module
-Uses OpenCV's pre-trained deep learning model to colorize grayscale images
+Image Colorization Module – Memory-Optimized for Render Free Tier (512 MB RAM)
+===============================================================================
+Memory budget (approximate):
+  OS + Python runtime :  ~80 MB
+  Flask + libraries   :  ~70 MB
+  Caffe model loaded  : ~125 MB
+  ─────────────────────────────
+  Available for images:  ~237 MB   ← we must stay well under this
+
+With MAX_DIM = 400 peak image memory is ~6 MB, well within budget.
+The network processes at 224×224 internally, so limiting input to 400 px
+does NOT reduce output quality.
 """
+
 import cv2
 import numpy as np
 import os
+import gc
 
-# Path to model files
-MODEL_DIR = os.path.join(os.path.dirname(__file__), 'models')
-PROTOTXT_PATH = os.path.join(MODEL_DIR, 'colorization_deploy_v2.prototxt')
+# ── Model directory ──────────────────────────────────────────────────────────
+# Override via env-var on Render so the path is always explicit.
+MODEL_DIR = os.environ.get(
+    'COLORIZER_MODEL_DIR',
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models')
+)
+
+PROTOTXT_PATH   = os.path.join(MODEL_DIR, 'colorization_deploy_v2.prototxt')
 CAFFEMODEL_PATH = os.path.join(MODEL_DIR, 'colorization_release_v2.caffemodel')
-POINTS_PATH = os.path.join(MODEL_DIR, 'pts_in_hull.npy')
+POINTS_PATH     = os.path.join(MODEL_DIR, 'pts_in_hull.npy')
 
+# ── Tuning knobs ─────────────────────────────────────────────────────────────
+# Keep this at/below 400 on Render free tier.
+# The network is 224×224 so going higher gives marginal quality but big RAM cost.
+MAX_DIM = 400
+
+
+# ── Helpers ──────────────────────────────────────────────────────────────────
+
+def _check_model_files():
+    """Return list of (label, path) for every missing / corrupt model file."""
+    problems = []
+    checks = [
+        ('prototxt',          PROTOTXT_PATH,   5_000),
+        ('pts_in_hull',       POINTS_PATH,     1_000),
+        ('caffemodel',        CAFFEMODEL_PATH, 100_000_000),  # must be ≥100 MB
+    ]
+    for label, path, min_bytes in checks:
+        if not os.path.exists(path):
+            problems.append((label + ' (missing)', path))
+        elif os.path.getsize(path) < min_bytes:
+            problems.append((label + f' (only {os.path.getsize(path)//1024} KB – corrupt?)', path))
+    return problems
+
+
+def _available_ram_mb():
+    """Return approximate free RAM in MB (best-effort; returns None if psutil not installed)."""
+    try:
+        import psutil
+        return psutil.virtual_memory().available // (1024 * 1024)
+    except ImportError:
+        return None
+
+
+# ── Colorizer class ──────────────────────────────────────────────────────────
 
 class ImageColorizer:
-    """Class to handle image colorization using pre-trained Caffe model"""
-    
+    """Colorize grayscale images using the Zhang et al. (2016) Caffe model."""
+
     def __init__(self):
         self.net = None
-        self.pts_in_hull = None
         self._load_model()
-    
+
+    # ── Model loading ────────────────────────────────────────────────────────
+
     def _load_model(self):
-        if not os.path.exists(PROTOTXT_PATH):
-            raise FileNotFoundError(f"Prototxt file not found: {PROTOTXT_PATH}")
-        if not os.path.exists(CAFFEMODEL_PATH):
-            raise FileNotFoundError(f"Caffemodel file not found: {CAFFEMODEL_PATH}")
-        if not os.path.exists(POINTS_PATH):
-            raise FileNotFoundError(f"Points file not found: {POINTS_PATH}")
-        
-        # Load the model
+        problems = _check_model_files()
+        if problems:
+            detail = '\n  '.join(f'{lbl}: {p}' for lbl, p in problems)
+            raise FileNotFoundError(
+                'Model files missing or corrupt.  '
+                'Run  python download_models.py  on the server.\n'
+                f'Problems:\n  {detail}\n'
+                f'Model directory: {MODEL_DIR}'
+            )
+
+        print(f'[Colorizer] Loading model from {MODEL_DIR} …')
         self.net = cv2.dnn.readNetFromCaffe(PROTOTXT_PATH, CAFFEMODEL_PATH)
-        
-        # Load cluster centers
-        self.pts_in_hull = np.load(POINTS_PATH)
-        
-        # Add cluster centers as 1x1 convolution to the model
-        self.pts_in_hull = self.pts_in_hull.transpose().reshape(2, 313, 1, 1)
-        self.net.getLayer(self.net.getLayerId('class8_ab')).blobs = [self.pts_in_hull.astype(np.float32)]
-        self.net.getLayer(self.net.getLayerId('conv8_313_rh')).blobs = [np.full([1, 313], 2.606, dtype=np.float32)]
-    
+
+        # Attach cluster centres to the network
+        pts = np.load(POINTS_PATH).transpose().reshape(2, 313, 1, 1).astype(np.float32)
+        self.net.getLayer(self.net.getLayerId('class8_ab')).blobs = [pts]
+        self.net.getLayer(self.net.getLayerId('conv8_313_rh')).blobs = [
+            np.full([1, 313], 2.606, dtype=np.float32)
+        ]
+        del pts
+        gc.collect()
+        print('[Colorizer] Model ready.')
+
+    # ── Colorization ─────────────────────────────────────────────────────────
+
     def colorize(self, image_path):
         """
-        Colorize a grayscale image
-
-        Args:
-            image_path: Path to the input image
+        Colorize image at *image_path*.
 
         Returns:
-            tuple: (colorized_image, quality_score)
+            (colorized_bgr_uint8, quality_score_float)
+        Raises:
+            ValueError  – if the image cannot be read
+            RuntimeError – if the model is not loaded
         """
-        # Read image
-        image = cv2.imread(image_path)
-        if image is None:
-            raise ValueError(f"Could not read image: {image_path}")
-            
-        # 1. IMMEDIATE DOWNSCALE (Prevent OOM on large files)
-        # AI works on 224x224 anyway; keeping >1000px wastes RAM on Free Tier.
-        max_dim = 1000
-        h, w = image.shape[:2]
-        if max(h, w) > max_dim:
-            scale = max_dim / max(h, w)
-            image = cv2.resize(image, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
-        
-        # 2. CONVERT TO FLOAT
-        import gc
-        image_float = image.astype(np.float32) / 255.0
-        del image # Free original uint8 image
+        if self.net is None:
+            raise RuntimeError('Model not loaded.')
+
+        # ── 0. Pre-flight memory check ────────────────────────────────────
+        free_mb = _available_ram_mb()
+        if free_mb is not None and free_mb < 80:
+            raise MemoryError(
+                f'Server is low on memory ({free_mb} MB free). '
+                'Please try again in a moment.'
+            )
+
+        # ── 1. Read image ────────────────────────────────────────────────
+        img = cv2.imread(image_path)
+        if img is None:
+            raise ValueError(
+                f'Cannot read image: {image_path}. '
+                'Ensure the file is a valid PNG / JPG / JPEG / BMP / WEBP.'
+            )
+
+        # ── 2. Down-scale BEFORE float conversion (saves most memory) ────
+        h, w = img.shape[:2]
+        if max(h, w) > MAX_DIM:
+            scale = MAX_DIM / max(h, w)
+            img = cv2.resize(
+                img,
+                (max(1, int(w * scale)), max(1, int(h * scale))),
+                interpolation=cv2.INTER_AREA
+            )
+        # img is uint8 BGR, small – keep it for a moment
+
+        # ── 3. Convert to float32 LAB (in-place where possible) ─────────
+        # We convert uint8 → float32 here; this is the peak of RAM usage.
+        img_f = img.astype(np.float32) * (1.0 / 255.0)
+        del img          # free uint8 copy immediately
         gc.collect()
 
-        # 3. CONVERT TO LAB color space
-        lab = cv2.cvtColor(image_float, cv2.COLOR_BGR2LAB)
-        del image_float # Free float BGR
+        lab = cv2.cvtColor(img_f, cv2.COLOR_BGR2LAB)
+        del img_f
         gc.collect()
-        
-        # Extract L channel and resize for network input
-        L = lab[:, :, 0]
-        L_resized = cv2.resize(L, (224, 224))
-        L_resized -= 50  # Mean subtraction
-        
-        # Pass through network
-        self.net.setInput(cv2.dnn.blobFromImage(L_resized))
-        ab = self.net.forward()[0, :, :, :].transpose((1, 2, 0))
-        ab = cv2.resize(ab, (L.shape[1], L.shape[0]))
-        
-        # Combine L and predicted ab channels
-        L_exp = L[:, :, np.newaxis]
-        colorized_lab = np.concatenate([L_exp, ab], axis=2)
-        
-        # Free memory-intensive arrays before finishing
-        del ab
-        del lab
+
+        # ── 4. Prepare L channel for the 224×224 network ─────────────────
+        L = lab[:, :, 0]                          # shape (H, W)
+        L_net = cv2.resize(L, (224, 224)) - 50.0  # mean subtraction
+
+        # ── 5. Forward pass ───────────────────────────────────────────────
+        self.net.setInput(cv2.dnn.blobFromImage(L_net))
+        ab = self.net.forward()[0].transpose(1, 2, 0)   # (224,224,2)
+        del L_net
         gc.collect()
-        
-        # Convert back to BGR
+
+        # ── 6. Resize ab back to image dimensions ────────────────────────
+        ab = cv2.resize(ab, (L.shape[1], L.shape[0]))   # (H, W, 2)
+
+        # ── 7. Reconstruct colorised image ────────────────────────────────
+        colorized_lab = np.concatenate([L[:, :, np.newaxis], ab], axis=2)
+        del L, ab, lab
+        gc.collect()
+
         colorized = cv2.cvtColor(colorized_lab, cv2.COLOR_LAB2BGR)
         del colorized_lab
         gc.collect()
-        
-        colorized = np.clip(colorized, 0, 1)
-        colorized = (colorized * 255).astype(np.uint8)
-        
-        # Calculate quality score
-        quality_score = self._calculate_quality_score(colorized)
-        
-        return colorized, quality_score
-    
-    def _calculate_quality_score(self, image):
-        """
-        Calculate a quality score based on color vibrancy
 
-        Args:
-            image: BGR image
+        colorized = np.clip(colorized, 0.0, 1.0)
+        colorized = (colorized * 255.0).astype(np.uint8)
 
-        Returns:
-            float: Quality score between 0 and 100
-        """
-        # Fast quality calculation on a downscaled version
-        small_image = cv2.resize(image, (150, int(150 * image.shape[0] / image.shape[1])))
-        
-        # Convert to HSV
-        hsv = cv2.cvtColor(small_image, cv2.COLOR_BGR2HSV)
-        
-        # Calculate saturation metrics
-        saturation = hsv[:, :, 1]
-        mean_saturation = np.mean(saturation)
-        
-        # Calculate value (brightness) metrics
-        value = hsv[:, :, 2]
-        mean_value = np.mean(value)
-        
-        # Color variety (hue standard deviation)
-        hue = hsv[:, :, 0]
-        hue_std = np.std(hue)
-        
-        # Combine metrics into quality score
-        saturation_score = min(mean_saturation / 128 * 50, 50)   # Max 50 points
-        brightness_score = min(mean_value / 255 * 25, 25)         # Max 25 points
-        variety_score = min(hue_std / 50 * 25, 25)                # Max 25 points
-        
-        quality_score = saturation_score + brightness_score + variety_score
-        
-        return round(quality_score, 1)
+        quality = self._quality_score(colorized)
+        return colorized, quality
+
+    # ── Quality scoring ───────────────────────────────────────────────────
+
+    def _quality_score(self, bgr):
+        """Return a 0–100 quality score from HSV statistics (fast thumbnail approach)."""
+        th = 120
+        tw = max(1, int(120 * bgr.shape[1] / bgr.shape[0]))
+        thumb = cv2.resize(bgr, (tw, th))
+        hsv = cv2.cvtColor(thumb, cv2.COLOR_BGR2HSV)
+
+        sat_score = min(float(np.mean(hsv[:, :, 1])) / 128.0 * 50.0, 50.0)
+        val_score = min(float(np.mean(hsv[:, :, 2])) / 255.0 * 25.0, 25.0)
+        var_score = min(float(np.std (hsv[:, :, 0])) /  50.0 * 25.0, 25.0)
+
+        return round(sat_score + val_score + var_score, 1)
 
 
-# Global colorizer instance (lazy loaded)
+# ── Singleton ────────────────────────────────────────────────────────────────
+
 _colorizer = None
 
 
 def get_colorizer():
-    """Get or create the global colorizer instance"""
+    """Return the shared ImageColorizer instance (lazy-loaded)."""
     global _colorizer
     if _colorizer is None:
         _colorizer = ImageColorizer()
@@ -158,27 +208,29 @@ def get_colorizer():
 
 def colorize_image(input_path, output_path):
     """
-    Convenience function to colorize an image and save it
-
-    Args:
-        input_path: Path to input grayscale image
-        output_path: Path to save colorized image
+    Colorize *input_path* and write the result to *output_path*.
 
     Returns:
-        tuple: (success, quality_score or error_message)
+        (True,  quality_score)   on success
+        (False, error_message)   on failure
     """
     try:
         colorizer = get_colorizer()
         colorized, quality_score = colorizer.colorize(input_path)
-        
-        # Ensure output directory exists
+
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        
-        # Write image and check success
-        success = cv2.imwrite(output_path, colorized)
-        if not success:
-            return False, f"Could not write output image to {output_path}"
-            
+        if not cv2.imwrite(output_path, colorized):
+            return False, f'cv2.imwrite failed – cannot write to {output_path}'
+
         return True, quality_score
+
+    except FileNotFoundError as e:
+        return False, (
+            'AI model files are not yet available on this server. '
+            'Please contact the administrator. '
+            f'Details: {e}'
+        )
+    except MemoryError as e:
+        return False, str(e)
     except Exception as e:
         return False, str(e)
