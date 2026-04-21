@@ -7,7 +7,6 @@ import os
 import time
 import uuid
 import base64
-import cv2
 import gc
 from io import BytesIO
 from flask import (Flask, render_template, request, jsonify, send_file,
