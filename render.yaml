@@ -8,7 +8,8 @@ services:
     # Single worker = model loaded once (~125 MB).
     # 2 threads handle concurrent requests within the same process (shared memory).
     # 180s timeout for large images on slow free-tier CPU.
-    startCommand: "gunicorn --workers 1 --threads 1 --timeout 180 --bind 0.0.0.0:$PORT app:app"
+    # Workers periodically restart to clear memory fragmentation.
+    startCommand: "gunicorn --workers 1 --threads 1 --timeout 180 --max-requests 10 --max-requests-jitter 3 --bind 0.0.0.0:$PORT app:app"
     envVars:
       - key: DATABASE_URL
         fromDatabase:

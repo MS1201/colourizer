@@ -30,9 +30,9 @@ CAFFEMODEL_PATH = os.path.join(MODEL_DIR, 'colorization_release_v2.caffemodel')
 POINTS_PATH     = os.path.join(MODEL_DIR, 'pts_in_hull.npy')
 
 # ── Tuning knobs ─────────────────────────────────────────────────────────────
-# Keep this at/below 400 on Render free tier.
-# The network is 224×224 so going higher gives marginal quality but big RAM cost.
-MAX_DIM = 400
+# Keep this at/below 256 on Render free tier to minimize internal DNN buffers.
+# The network is 224×224 so 256 gives a good balance of quality and RAM safety.
+MAX_DIM = 256
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -115,10 +115,10 @@ class ImageColorizer:
 
         # ── 0. Pre-flight memory check ────────────────────────────────────
         free_mb = _available_ram_mb()
-        if free_mb is not None and free_mb < 64:
+        if free_mb is not None and free_mb < 100:
             raise MemoryError(
-                f'Cloud server is currently low on memory ({free_mb} MB available). '
-                'The AI model needs some room to process. Please try again in 30 seconds.'
+                f'Cloud server is critically low on memory ({free_mb} MB available). '
+                'Please try again in 1 minute. The system is auto-cleaning.'
             )
 
         # ── 1. Read image ────────────────────────────────────────────────
