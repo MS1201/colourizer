@@ -650,10 +650,17 @@ def analytics():
 @app.route('/health')
 def health():
     try:
+        from colorizer import _available_ram_mb
         get_colorizer()
-        return jsonify({'status': 'healthy', 'model_loaded': True})
-    except FileNotFoundError as e:
-        return jsonify({'status': 'unhealthy', 'model_loaded': False, 'error': str(e)}), 503
+        return jsonify({
+            'status': 'healthy', 
+            'model_loaded': True,
+            'cloudinary_active': HAS_CLOUDINARY,
+            'free_ram_mb': _available_ram_mb(),
+            'storage_limit': 'Unlimited (Cloudinary)' if HAS_CLOUDINARY else 'Limited (Local)'
+        })
+    except Exception as e:
+        return jsonify({'status': 'unhealthy', 'error': str(e)}), 503
 
 
 # ============== ADMIN ROUTES ==============
