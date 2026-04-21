@@ -58,10 +58,19 @@ os.makedirs(COLORIZED_FOLDER, exist_ok=True)
 # Initialize Flask app
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-# Lowered from 500MB to 32MB for Render Free tier stability. 
-# 32MB is plenty for 4K JPEGs, while preventing OOM crashes on 512MB RAM machines.
-app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024  
+# Lowered from 500MB to 100MB for Render Free tier stability. 
+# 100MB is safe for high-res JPEGs when using cloud storage fallback.
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  
 app.config['SECRET_KEY'] = os.getenv("SECRET_KEY", "dev_secret_key_change_in_production_12345")
+
+# Cloudinary Setup (for "unlimited" cloud storage)
+import cloudinary
+import cloudinary.uploader
+if os.getenv("CLOUDINARY_URL"):
+    cloudinary.config(cloudinary_url=os.getenv("CLOUDINARY_URL"))
+    HAS_CLOUDINARY = True
+else:
+    HAS_CLOUDINARY = False
 
 # Initialize Flask-Login
 login_manager.init_app(app)
@@ -519,8 +528,22 @@ def upload_file():
         
         if success:
             quality_score = result
+            
+            # Cloudinary Upload (Removes local size limits)
+            final_url = f'/static/results/{output_filename}'
+            if HAS_CLOUDINARY:
+                try:
+                    upload_res = cloudinary.uploader.upload(output_path, 
+                                                           folder="colourizer_results",
+                                                           public_id=output_filename.split('.')[0])
+                    final_url = upload_res.get('secure_url', final_url)
+                    # Delete local copy after sync to cloud
+                    if os.path.exists(output_path): os.remove(output_path)
+                except Exception as e:
+                    print(f"Cloudinary upload error: {e}")
+
             # Send result email
-            send_result_email(current_user.email, output_path)
+            send_result_email(current_user.email, output_path if not HAS_CLOUDINARY else final_url)
 
             log_colorization(
                 original_filename=original_filename, filename=output_filename,
@@ -550,7 +573,7 @@ def upload_file():
             return jsonify({
                 'success': True, 
                 'input_url': f'/static/uploads/{filename}',
-                'output_url': f'/static/results/{output_filename}',
+                'output_url': final_url,
                 'filename': output_filename, 
                 'original_filename': original_filename,
                 'processing_time': round(processing_time, 2), 
