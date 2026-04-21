@@ -56,7 +56,9 @@ os.makedirs(COLORIZED_FOLDER, exist_ok=True)
 # Initialize Flask app
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB max file size (effectively unlimited for photos)
+# Lowered from 500MB to 32MB for Render Free tier stability. 
+# 32MB is plenty for 4K JPEGs, while preventing OOM crashes on 512MB RAM machines.
+app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024  
 app.config['SECRET_KEY'] = os.getenv("SECRET_KEY", "dev_secret_key_change_in_production_12345")
 
 # Initialize Flask-Login
@@ -73,6 +75,29 @@ def get_client_ip():
     if request.headers.get('X-Forwarded-For'):
         return request.headers.get('X-Forwarded-For').split(',')[0].strip()
     return request.remote_addr
+
+
+def cleanup_storage(max_age_seconds=600):
+    """
+    Delete files older than max_age_seconds to free up disk space.
+    Critical for Render Free Tier which has limited ephemeral storage.
+    """
+    for folder in [UPLOAD_FOLDER, COLORIZED_FOLDER]:
+        try:
+            now = time.time()
+            for filename in os.listdir(folder):
+                file_path = os.path.join(folder, filename)
+                # Don't delete .gitkeep or hidden files
+                if filename.startswith('.'):
+                    continue
+                if os.path.isfile(file_path):
+                    if now - os.path.getmtime(file_path) > max_age_seconds:
+                        try:
+                            os.remove(file_path)
+                        except OSError:
+                            pass
+        except Exception as e:
+            print(f"Cleanup error: {e}")
 
 
 # ============== MIDDLEWARE (SECURITY) ==============
@@ -451,6 +476,9 @@ def colorizer():
 @app.route('/upload', methods=['POST'])
 @permission_required('colorize')
 def upload_file():
+    # Free up space before processing new upload
+    cleanup_storage(max_age_seconds=300) # Keep for only 5 mins on busy servers
+    
     if 'file' not in request.files:
         return jsonify({'error': 'No file provided'}), 400
     file = request.files['file']

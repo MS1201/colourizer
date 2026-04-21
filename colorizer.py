@@ -86,6 +86,8 @@ class ImageColorizer:
 
         print(f'[Colorizer] Loading model from {MODEL_DIR} …')
         self.net = cv2.dnn.readNetFromCaffe(PROTOTXT_PATH, CAFFEMODEL_PATH)
+        self.net.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
+        self.net.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
 
         # Attach cluster centres to the network
         pts = np.load(POINTS_PATH).transpose().reshape(2, 313, 1, 1).astype(np.float32)
@@ -94,7 +96,6 @@ class ImageColorizer:
             np.full([1, 313], 2.606, dtype=np.float32)
         ]
         del pts
-        gc.collect()
         print('[Colorizer] Model ready.')
 
     # ── Colorization ─────────────────────────────────────────────────────────
@@ -114,10 +115,10 @@ class ImageColorizer:
 
         # ── 0. Pre-flight memory check ────────────────────────────────────
         free_mb = _available_ram_mb()
-        if free_mb is not None and free_mb < 80:
+        if free_mb is not None and free_mb < 64:
             raise MemoryError(
-                f'Server is low on memory ({free_mb} MB free). '
-                'Please try again in a moment.'
+                f'Cloud server is currently low on memory ({free_mb} MB available). '
+                'The AI model needs some room to process. Please try again in 30 seconds.'
             )
 
         # ── 1. Read image ────────────────────────────────────────────────
@@ -143,11 +144,9 @@ class ImageColorizer:
         # We convert uint8 → float32 here; this is the peak of RAM usage.
         img_f = img.astype(np.float32) * (1.0 / 255.0)
         del img          # free uint8 copy immediately
-        gc.collect()
 
         lab = cv2.cvtColor(img_f, cv2.COLOR_BGR2LAB)
         del img_f
-        gc.collect()
 
         # ── 4. Prepare L channel for the 224×224 network ─────────────────
         L = lab[:, :, 0]                          # shape (H, W)
@@ -157,7 +156,6 @@ class ImageColorizer:
         self.net.setInput(cv2.dnn.blobFromImage(L_net))
         ab = self.net.forward()[0].transpose(1, 2, 0)   # (224,224,2)
         del L_net
-        gc.collect()
 
         # ── 6. Resize ab back to image dimensions ────────────────────────
         ab = cv2.resize(ab, (L.shape[1], L.shape[0]))   # (H, W, 2)
@@ -165,11 +163,9 @@ class ImageColorizer:
         # ── 7. Reconstruct colorised image ────────────────────────────────
         colorized_lab = np.concatenate([L[:, :, np.newaxis], ab], axis=2)
         del L, ab, lab
-        gc.collect()
 
         colorized = cv2.cvtColor(colorized_lab, cv2.COLOR_LAB2BGR)
         del colorized_lab
-        gc.collect()
 
         colorized = np.clip(colorized, 0.0, 1.0)
         colorized = (colorized * 255.0).astype(np.uint8)
