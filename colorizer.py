@@ -171,6 +171,9 @@ class ImageColorizer:
         colorized = (colorized * 255.0).astype(np.uint8)
 
         quality = self._quality_score(colorized)
+        
+        # Explicitly collect garbage to free up memory before returning
+        gc.collect()
         return colorized, quality
 
     # ── Quality scoring ───────────────────────────────────────────────────

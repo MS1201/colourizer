@@ -8,12 +8,14 @@ import time
 import uuid
 import base64
 import cv2
+import gc
 from io import BytesIO
 from flask import (Flask, render_template, request, jsonify, send_file,
                    redirect, url_for, session, make_response, flash)
 from werkzeug.utils import secure_filename
 from flask_login import login_required, login_user, logout_user, current_user
 from dotenv import load_dotenv
+from PIL import Image as PilImage
 
 # Load environment variables
 load_dotenv()
@@ -497,18 +499,23 @@ def upload_file():
         
         file_size_kb = os.path.getsize(input_path) / 1024
         
-        img = cv2.imread(input_path)
-        if img is None:
+        # Use Pillow to get dimensions without loading the whole image into RAM
+        try:
+            with PilImage.open(input_path) as pimg:
+                width, height = pimg.size
+        except Exception:
             os.remove(input_path)
-            return jsonify({'error': 'Could not read image file'}), 400
+            return jsonify({'error': 'Invalid image file or format'}), 400
         
-        height, width = img.shape[:2]
         output_filename = f"colorized_{filename}"
         output_path = os.path.join(COLORIZED_FOLDER, output_filename)
         
         start_time = time.time()
         success, result = colorize_image(input_path, output_path)
         processing_time = time.time() - start_time
+        
+        # Immediate cleanup of memory after intensive processing
+        gc.collect()
         
         if success:
             quality_score = result
