@@ -7,7 +7,10 @@ import os
 import time
 import uuid
 import base64
+import cv2
 import gc
+import requests
+import hashlib
 from io import BytesIO
 from flask import (Flask, render_template, request, jsonify, send_file,
                    redirect, url_for, session, make_response, flash)
@@ -108,6 +111,83 @@ def cleanup_storage(max_age_seconds=600):
                             pass
         except Exception as e:
             print(f"Cleanup error: {e}")
+
+def check_image_security(file_stream):
+    """
+    Sends the file to VirusTotal API for scanning before allowing upload.
+    Returns (True, None) if clean, (False, error_msg) if malicious/suspicious or error.
+    """
+    api_key = os.getenv("VIRUSTOTAL_API_KEY")
+    if not api_key:
+        return False, "VirusTotal API key not configured"
+
+    headers = {"x-apikey": api_key}
+    
+    # Calculate SHA-256
+    original_pos = file_stream.tell()
+    file_stream.seek(0)
+    file_bytes = file_stream.read()
+    file_hash = hashlib.sha256(file_bytes).hexdigest()
+    
+    try:
+        # Check if file exists in VirusTotal
+        check_url = f"https://www.virustotal.com/api/v3/files/{file_hash}"
+        check_res = requests.get(check_url, headers=headers, timeout=10)
+        
+        if check_res.status_code == 200:
+            # File already analyzed
+            stats = check_res.json().get("data", {}).get("attributes", {}).get("last_analysis_stats", {})
+            malicious = stats.get("malicious", 0)
+            suspicious = stats.get("suspicious", 0)
+            
+            file_stream.seek(original_pos)
+            if malicious > 0 or suspicious > 0:
+                return False, "Upload blocked due to security reasons"
+            return True, None
+            
+        elif check_res.status_code == 404:
+            # File not found, need to upload
+            url = "https://www.virustotal.com/api/v3/files"
+            file_stream.seek(0)
+            files = {"file": ("upload_img", file_stream, "application/octet-stream")}
+            
+            upload_res = requests.post(url, headers=headers, files=files, timeout=15)
+            
+            if upload_res.status_code == 200:
+                data = upload_res.json()
+                analysis_id = data.get("data", {}).get("id")
+                
+                # Poll for result
+                analysis_url = f"https://www.virustotal.com/api/v3/analyses/{analysis_id}"
+                for _ in range(6):
+                    time.sleep(3)
+                    poll_res = requests.get(analysis_url, headers=headers, timeout=10)
+                    if poll_res.status_code == 200:
+                        poll_data = poll_res.json()
+                        status = poll_data.get("data", {}).get("attributes", {}).get("status")
+                        if status == "completed":
+                            stats = poll_data.get("data", {}).get("attributes", {}).get("stats", {})
+                            malicious = stats.get("malicious", 0)
+                            suspicious = stats.get("suspicious", 0)
+                            
+                            file_stream.seek(original_pos)
+                            if malicious > 0 or suspicious > 0:
+                                return False, "Upload blocked due to security reasons"
+                            return True, None
+                
+                file_stream.seek(original_pos)
+                return False, "Upload blocked due to security reasons" # Treat timeout as failure/reject
+            else:
+                file_stream.seek(original_pos)
+                return False, "Upload blocked due to security reasons"
+                
+        else:
+            file_stream.seek(original_pos)
+            return False, "Upload blocked due to security reasons"
+
+    except Exception as e:
+        file_stream.seek(original_pos)
+        return False, "Upload blocked due to security reasons"
 
 
 # ============== MIDDLEWARE (SECURITY) ==============
@@ -497,6 +577,13 @@ def upload_file():
     if not allowed_file(file.filename):
         return jsonify({'error': 'Invalid file type. Allowed: PNG, JPG, JPEG, BMP, WEBP'}), 400
     
+    is_clean, vt_error = check_image_security(file)
+    if not is_clean:
+        if vt_error == "Upload blocked due to security reasons":
+            logout_user()
+            session.clear()
+        return jsonify({'error': vt_error}), 403
+        
     try:
         original_filename = secure_filename(file.filename)
         unique_id = str(uuid.uuid4())[:8]
