@@ -192,20 +192,29 @@ class ImageColorizer:
         return round(sat_score + val_score + var_score, 1)
 
 
-# ── On-Demand Model Lifecycle (RAM Safety for 512MB Tiers) ───────────────────
+# ── Singleton ────────────────────────────────────────────────────────────────
+
+_colorizer = None
+
 
 def get_colorizer():
-    """Deprecated: No longer using a shared singleton to save RAM."""
-    return True
+    """Return the shared ImageColorizer instance (lazy-loaded)."""
+    global _colorizer
+    if _colorizer is None:
+        _colorizer = ImageColorizer()
+    return _colorizer
+
 
 def colorize_image(input_path, output_path):
     """
-    On-Demand lifecycle: Loads model, processes, and PURGES model from RAM immediately.
+    Colorize *input_path* and write the result to *output_path*.
+
+    Returns:
+        (True,  quality_score)   on success
+        (False, error_message)   on failure
     """
-    colorizer = None
     try:
-        # Load model ONLY when needed
-        colorizer = ImageColorizer()
+        colorizer = get_colorizer()
         colorized, quality_score = colorizer.colorize(input_path)
 
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
@@ -224,10 +233,3 @@ def colorize_image(input_path, output_path):
         return False, str(e)
     except Exception as e:
         return False, str(e)
-    finally:
-        # ABSOLUTE PURGE: Free heavy model buffers from RAM
-        if colorizer:
-            if hasattr(colorizer, 'net'):
-                del colorizer.net
-            del colorizer
-        gc.collect()
