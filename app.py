@@ -238,7 +238,7 @@ def add_security_headers(response):
             "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; "
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
             "font-src 'self' data: https://fonts.gstatic.com; "
-            "img-src 'self' data: blob:; "
+            "img-src 'self' data: blob: https://res.cloudinary.com; "
             "connect-src 'self'"
         )
     }

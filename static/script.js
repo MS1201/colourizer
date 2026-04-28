@@ -24,6 +24,7 @@ const statDimensions = document.getElementById('statDimensions');
 
 // Current colorized image filename
 let currentColorizedFilename = null;
+let currentOutputUrl = null;
 let currentOriginalFile = null;
 
 // Initialize
@@ -142,7 +143,9 @@ async function processFile(file) {
 
         // Set images
         if (originalImage) originalImage.src = URL.createObjectURL(file);
-        if (colorizedImage) colorizedImage.src = `${window.location.origin}/static/results/${data.filename}?t=${Date.now()}`;
+        // Use the output_url from server (Cloudinary URL when cloud storage is active)
+        currentOutputUrl = data.output_url || `/static/results/${data.filename}`;
+        if (colorizedImage) colorizedImage.src = currentOutputUrl + (currentOutputUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
 
         // Update stats
         if (statTime) statTime.textContent = data.processing_time || '2.1s';
@@ -169,7 +172,16 @@ async function processFile(file) {
 
 // Download colorized image
 function downloadImage() {
-    if (currentColorizedFilename) {
+    if (currentOutputUrl) {
+        // Use the actual URL (Cloudinary or local)
+        const link = document.createElement('a');
+        link.href = currentOutputUrl;
+        link.download = currentColorizedFilename || 'colorized_image.png';
+        link.target = '_blank';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    } else if (currentColorizedFilename) {
         window.location.href = `/static/results/${currentColorizedFilename}`;
     }
 }
@@ -181,6 +193,7 @@ function resetUpload() {
     if (uploadSection) uploadSection.classList.remove('hidden');
     if (fileInput) fileInput.value = '';
     currentColorizedFilename = null;
+    currentOutputUrl = null;
     currentOriginalFile = null;
 }
 
