@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ColourGAN Pro | AI-Powered Image Colorization</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='landing.css') }}">
+</head>
+
+<body>
+    <!-- Navigation -->
+    <nav class="nav">
+        <div class="nav-container">
+            <div class="logo">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path>
+                    <path d="M2 12h20"></path>
+                </svg>
+                ColourGAN
+            </div>
+            <div class="nav-links">
+                <a href="#features" class="nav-link">Features</a>
+                <a href="#how-it-works" class="nav-link">How it Works</a>
+                <a href="/dashboard" class="btn-login">Dashboard</a>
+                <a href="/dashboard" class="btn-signup">Get Started</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero" id="hero">
+        <div class="hero-background">
+            <div class="gradient-orb orb-1"></div>
+            <div class="gradient-orb orb-2"></div>
+            <div class="gradient-orb orb-3"></div>
+        </div>
+        <div class="hero-container">
+            <div class="hero-content">
+                <h1 class="hero-title">
+                    Breathe <span class="gradient-text">Life</span> into your <span
+                        class="gradient-text">Memories</span>
+                </h1>
+                <p class="hero-subtitle">
+                    Transform your black and white photos into stunning, realistic color masterpieces using
+                    state-of-the-art Generative Adversarial Networks.
+                </p>
+                <div class="hero-cta">
+                    <a href="/dashboard" class="btn-primary">Try for Free</a>
+                    <a href="#features" class="btn-secondary">Learn More</a>
+                </div>
+                <div class="hero-stats">
+                    <div class="stat-item">
+                        <div class="stat-value">12K+</div>
+                        <div class="stat-label">Happy Users</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">2.1s</div>
+                        <div class="stat-label">Avg. Speed</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">98%</div>
+                        <div class="stat-label">Accuracy</div>
+                    </div>
+                </div>
+            </div>
+            <div class="hero-visual">
+                <div class="image-comparison">
+                    <div class="comparison-card">
+                        <div class="card-label">BEFORE</div>
+                        <div class="placeholder-image" style="position: relative; overflow: hidden;">
+                            <img src="{{ url_for('static', filename='demo_portrait.png') }}" style="width: 100%; height: 100%; object-fit: cover; filter: grayscale(100%); mix-blend-mode: luminosity;" alt="Before">
+                        </div>
+                    </div>
+                    <div class="arrow-divider">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                            <polyline points="12 5 19 12 12 19"></polyline>
+                        </svg>
+                    </div>
+                    <div class="comparison-card">
+                        <div class="card-label">AFTER</div>
+                        <div class="placeholder-image" style="position: relative; overflow: hidden;">
+                            <img src="{{ url_for('static', filename='demo_portrait.png') }}" style="width: 100%; height: 100%; object-fit: cover;" alt="After">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features" id="features">
+        <div class="features-container">
+            <div class="section-header">
+                <h2 class="section-title">Powerful AI Features</h2>
+                <p class="section-subtitle">Why professionals choose ColourGAN for restoration.</p>
+            </div>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
+                        </svg>
+                    </div>
+                    <h3 class="feature-title">Neural Colorization</h3>
+                    <p class="feature-description">State-of-the-art GAN models trained on millions of high-resolution
+                        images for natural skin tones and vibrant landscapes.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="feature-title">Lightning Fast</h3>
+                    <p class="feature-description">Optimized inference engines ensure your photos are colorized in
+                        seconds, not minutes. Real-time processing for efficient workflows.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                            <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                            <polyline points="21 15 16 10 5 21"></polyline>
+                        </svg>
+                    </div>
+                    <h3 class="feature-title">Batch Processing</h3>
+                    <p class="feature-description">Upload multiple photos at once and let our AI handle the rest.
+                        Perfect for entire albums of historical family photos.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works Section -->
+    <section class="how-it-works" id="how-it-works">
+        <div class="how-container">
+            <div class="section-header">
+                <h2 class="section-title">How It Works</h2>
+                <p class="section-subtitle">Restoration in three simple steps.</p>
+            </div>
+            <div class="steps-grid">
+                <div class="step-card">
+                    <div class="step-number">01</div>
+                    <h3 class="step-title">Upload Image</h3>
+                    <p class="step-description">Drag and drop your black and white photos into our secure dashboard.</p>
+                </div>
+                <div class="step-divider">
+                    <svg width="48" height="24" viewBox="0 0 48 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M0 12h46m-6-6l6 6-6 6"></path>
+                    </svg>
+                </div>
+                <div class="step-card">
+                    <div class="step-number">02</div>
+                    <h3 class="step-title">AI Processing</h3>
+                    <p class="step-description">Our GAN model predicts the most likely colors based on lighting and
+                        texture.</p>
+                </div>
+                <div class="step-divider">
+                    <svg width="48" height="24" viewBox="0 0 48 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M0 12h46m-6-6l6 6-6 6"></path>
+                    </svg>
+                </div>
+                <div class="step-card">
+                    <div class="step-number">03</div>
+                    <h3 class="step-title">Download Result</h3>
+                    <p class="step-description">Get your vibrant colorized image in high resolution instantly.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta-section">
+        <div class="cta-container">
+            <h2 class="cta-title">Ready to see the <span class="gradient-text">Future</span>?</h2>
+            <p class="cta-subtitle">Join thousands of photographers and historians restoring the past.</p>
+            <div class="cta-buttons">
+                <a href="/dashboard" class="btn-primary-large">Start Colorizing Now</a>
+                <a href="#how-it-works" class="btn-secondary-large">See How</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-container">
+            <div class="footer-content">
+                <div class="footer-brand">
+                    <div class="logo">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path>
+                            <path d="M2 12h20"></path>
+                        </svg>
+                        ColourGAN
+                    </div>
+                    <p class="footer-tagline">Preserving history through artificial intelligence.</p>
+                </div>
+                <div class="footer-links">
+                    <div class="footer-column">
+                        <h4>Product</h4>
+                        <a href="#features">Features</a>
+                        <a href="/dashboard">Dashboard</a>
+                        <a href="#">API Access</a>
+                    </div>
+                    <div class="footer-column">
+                        <h4>Company</h4>
+                        <a href="#">About Us</a>
+                        <a href="#">Privacy Policy</a>
+                        <a href="#">Terms of Service</a>
+                    </div>
+                    <div class="footer-column">
+                        <h4>Social</h4>
+                        <a href="#">Twitter</a>
+                        <a href="#">Instagram</a>
+                        <a href="#">LinkedIn</a>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>© 2026 ColourGAN AI Lab. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="{{ url_for('static', filename='landing.js') }}"></script>
+</body>
+
+</html>

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Verify OTP for AI Image Colorizer">
+    <title>Verify OTP | AI Image Colorizer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body class="auth-page">
+    <div class="auth-container">
+        <div class="auth-card">
+            <!-- Logo -->
+            <div class="auth-logo">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/>
+                    <circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/>
+                    <circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/>
+                    <circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/>
+                    <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/>
+                </svg>
+                <h1>AI Image Colorizer</h1>
+            </div>
+
+            <!-- Welcome Text -->
+            <div class="auth-header">
+                <h2>Two-Step Verification</h2>
+                <p>Enter the 6-digit code sent to your email.</p>
+                <small style="color: #666; display: block; margin-top: 5px;">(Check console if email is not configured)</small>
+            </div>
+
+            <!-- Error/Success Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+              {% if messages %}
+                {% for category, message in messages %}
+                  <div class="auth-message {{ category }}">
+                    <span>{{ message }}</span>
+                  </div>
+                {% endfor %}
+              {% endif %}
+            {% endwith %}
+
+            {% if error %}
+            <div class="auth-message error">
+                <span>{{ error }}</span>
+            </div>
+            {% endif %}
+
+            <!-- OTP Form -->
+            <form class="auth-form" method="POST" action="{{ url_for('verify_otp') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="form-group">
+                    <label for="otp">One-Time Password (OTP)</label>
+                    <input type="text" id="otp" name="otp" placeholder="Enter 6-digit OTP" required
+                        autocomplete="one-time-code" pattern="\d{6}" maxlength="6" style="letter-spacing: 5px; text-align: center; font-size: 1.2rem;">
+                </div>
+
+                <div class="form-options" style="justify-content: center; margin-bottom: 20px;">
+                    <p style="font-size: 0.9rem; color: #666;">Didn't receive the code? <a href="{{ url_for('resend_otp') }}" style="color: var(--primary-color); font-weight: 500;">Resend OTP</a></p>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-block">Verify</button>
+            </form>
+
+            <!-- Footer -->
+            <div class="auth-footer">
+                <p><a href="{{ url_for('login') }}" class="back-link">← Back to Login</a></p>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

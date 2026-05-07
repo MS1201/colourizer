@@ -1,43 +1,29 @@
 """
 Analytics Module for Image Colorization
-Tracks processing metrics and stores them in PostgreSQL (Supabase)
+Supports PostgreSQL and SQLite fallback via database.py
 """
 
-import psycopg2
-from psycopg2.extras import RealDictCursor
 import os
 from datetime import datetime
-from contextlib import contextmanager
+from database import get_db_connection, get_db_cursor
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
-# Database connection string
-DB_URI = os.getenv("DB_URI", os.getenv("DATABASE_URL", "postgresql://postgres:0000@localhost:5432/colourizer"))
-
-
-@contextmanager
-def get_db_connection():
-    """Context manager for database connections"""
-    conn = psycopg2.connect(DB_URI)
-    try:
-        yield conn
-    finally:
-        conn.close()
-
-
 def init_database():
     """Initialize the analytics database with required tables"""
     try:
-        with get_db_connection() as conn:
-            with conn.cursor() as cursor:
+        conn = get_db_connection()
+        try:
+            with get_db_cursor(conn) as cursor:
                 cursor.execute('''
                     CREATE TABLE IF NOT EXISTS colorization_logs (
                         id SERIAL PRIMARY KEY,
                         timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         user_id INTEGER REFERENCES users(id),
                         original_filename TEXT,
+                        filename TEXT,
                         image_width INTEGER,
                         image_height INTEGER,
                         file_size_kb REAL,
@@ -48,39 +34,26 @@ def init_database():
                         output_url TEXT
                     )
                 ''')
-            # Commit the CREATE TABLE so it's not rolled back if the ALTER fails
             conn.commit()
-
-            # Migration: Add user_id, filename, and output_url columns if they don't exist
-            with conn.cursor() as cursor:
-                try:
-                    cursor.execute('ALTER TABLE colorization_logs ADD COLUMN user_id INTEGER REFERENCES users(id)')
-                    conn.commit()
-                except psycopg2.Error:
-                    conn.rollback()
-                
-                try:
-                    cursor.execute('ALTER TABLE colorization_logs ADD COLUMN filename TEXT')
-                    conn.commit()
-                except psycopg2.Error:
-                    conn.rollback()
-                
-                try:
+            
+            # Migration: Add output_url column if it doesn't exist (for older DBs)
+            try:
+                with get_db_cursor(conn) as cursor:
                     cursor.execute('ALTER TABLE colorization_logs ADD COLUMN output_url TEXT')
-                    conn.commit()
-                except psycopg2.Error:
-                    conn.rollback()
-    except psycopg2.OperationalError as e:
-        print(f"⚠️ DATABASE WARNING: Could not connect to database during startup. Is DATABASE_URL set correctly? Continuing app boot... Error details: {e}")
+                conn.commit()
+            except Exception:
+                conn.rollback()
+        finally:
+            conn.close()
     except Exception as e:
-        print(f"⚠️ DATABASE ERROR: {e}")
-
+        print(f"⚠️ ANALYTICS DATABASE ERROR: {e}")
 
 def log_colorization(original_filename, filename, image_width, image_height, file_size_kb,
                      processing_time_seconds, quality_score, status, error_message=None, user_id=None, output_url=None):
     """Log a colorization attempt to the database"""
-    with get_db_connection() as conn:
-        with conn.cursor() as cursor:
+    conn = get_db_connection()
+    try:
+        with get_db_cursor(conn) as cursor:
             cursor.execute('''
                 INSERT INTO colorization_logs 
                 (original_filename, filename, image_width, image_height, file_size_kb,
@@ -89,12 +62,14 @@ def log_colorization(original_filename, filename, image_width, image_height, fil
             ''', (original_filename, filename, image_width, image_height, file_size_kb,
                   processing_time_seconds, quality_score, status, error_message, user_id, output_url))
         conn.commit()
-
+    finally:
+        conn.close()
 
 def get_user_history(user_id):
     """Get colorization history for a specific user"""
-    with get_db_connection() as conn:
-        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+    conn = get_db_connection()
+    try:
+        with get_db_cursor(conn) as cursor:
             cursor.execute('''
                 SELECT 
                     timestamp,
@@ -128,12 +103,14 @@ def get_user_history(user_id):
                 if not row.get('output_url'):
                     row['output_url'] = f"/static/results/{row.get('filename', '')}"
             return rows
-
+    finally:
+        conn.close()
 
 def get_analytics_summary():
     """Get aggregated analytics summary"""
-    with get_db_connection() as conn:
-        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+    conn = get_db_connection()
+    try:
+        with get_db_cursor(conn) as cursor:
             # Total images processed
             cursor.execute('SELECT COUNT(*) as count FROM colorization_logs')
             total = cursor.fetchone()['count']
@@ -189,24 +166,28 @@ def get_analytics_summary():
             'total_data_processed_mb': round(float(total_size) / 1024, 2),
             'recent_logs': recent
         }
-
+    finally:
+        conn.close()
 
 def get_all_logs(limit=100):
     """Get all colorization logs for admin"""
-    with get_db_connection() as conn:
-        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+    conn = get_db_connection()
+    try:
+        with get_db_cursor(conn) as cursor:
             cursor.execute('''
                 SELECT * FROM colorization_logs
                 ORDER BY timestamp DESC
                 LIMIT %s
             ''', (limit,))
             return [dict(row) for row in cursor.fetchall()]
-
+    finally:
+        conn.close()
 
 def get_global_stats():
     """Get global statistics for admin dashboard"""
-    with get_db_connection() as conn:
-        with conn.cursor(cursor_factory=RealDictCursor) as cursor:
+    conn = get_db_connection()
+    try:
+        with get_db_cursor(conn) as cursor:
             cursor.execute('SELECT COUNT(*) as count FROM users')
             total_users = cursor.fetchone()['count']
 
@@ -219,14 +200,14 @@ def get_global_stats():
             cursor.execute('SELECT COUNT(*) as count FROM colorization_logs WHERE status = \'failed\'')
             failed_count = cursor.fetchone()['count']
 
-    return {
-        'total_users': total_users,
-        'total_colorizations': total_images,
-        'success_rate': round((success_count / total_images * 100) if total_images > 0 else 0, 1),
-        'total_failed': failed_count
-    }
-
-
+        return {
+            'total_users': total_users,
+            'total_colorizations': total_images,
+            'success_rate': round((success_count / total_images * 100) if total_images > 0 else 0, 1),
+            'total_failed': failed_count
+        }
+    finally:
+        conn.close()
 
 # Initialize database on module import
 init_database()

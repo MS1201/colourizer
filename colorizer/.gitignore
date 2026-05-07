@@ -1,0 +1,22 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.env
+.venv
+*.db
+app.db
+node_modules/
+checkpoints/
+outputs/
+*.log
+.DS_Store
+
+# Large model files
+*.caffemodel
+*.pt
+*.pth
+*.h5

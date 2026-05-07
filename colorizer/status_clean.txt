@@ -1,0 +1,39 @@
+﻿On branch main
+Your branch is up to date with 'origin/main'.
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	.env.example
+	analytics.py
+	app.py
+	auth.py
+	check_tables.py
+	colorizer.py
+	colorizer_engine.py
+	data/
+	data_loader.py
+	database.py
+	docker-compose.yml
+	download_models.py
+	fix_analytics_db.py
+	helper_utils.py
+	init_colourizer_db.py
+	loss_functions.py
+	make_admin.py
+	metrics.py
+	model_trainer.py
+	models/
+	neural_network.py
+	package-lock.json
+	package.json
+	requirements.txt
+	sendmail.js
+	setup_db.py
+	setup_test.py
+	start_web_app.py
+	static/
+	status.txt
+	status_clean.txt
+	templates/
+	verify_metrics.py
+

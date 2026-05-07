@@ -43,11 +43,12 @@ from auth import (
     generate_captcha, verify_captcha, check_rate_limit, log_login_attempt, clear_failed_attempts,
     admin_required, permission_required, has_permission, get_all_users, toggle_user_ban,
     change_user_role, delete_user_by_id, log_admin_action, get_recent_login_attempts, get_all_roles,
-    generate_csrf_token, validate_csrf_token, get_db_connection,
+    generate_csrf_token, validate_csrf_token,
     create_session_fingerprint, store_session_fingerprint, validate_session_fingerprint,
     generate_mfa_secret, get_totp_uri, verify_totp, enable_mfa, disable_mfa, verify_backup_code,
     send_otp_email, send_result_email, generate_otp
 )
+from database import get_db_connection, get_db_cursor
 
 # Configuration - Using existing project paths
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'static', 'uploads')
@@ -97,10 +98,11 @@ def cleanup_storage(max_age_seconds=600):
     """
     for folder in [UPLOAD_FOLDER, COLORIZED_FOLDER]:
         try:
+            if not os.path.exists(folder):
+                continue
             now = time.time()
             for filename in os.listdir(folder):
                 file_path = os.path.join(folder, filename)
-                # Don't delete .gitkeep or hidden files
                 if filename.startswith('.'):
                     continue
                 if os.path.isfile(file_path):
@@ -112,82 +114,17 @@ def cleanup_storage(max_age_seconds=600):
         except Exception as e:
             print(f"Cleanup error: {e}")
 
+def safe_isoformat(dt):
+    """Helper to safely call isoformat on datetime objects or strings."""
+    if hasattr(dt, 'isoformat'):
+        return dt.isoformat()
+    return str(dt)
+
 def check_image_security(file_stream):
     """
-    Sends the file to VirusTotal API for scanning before allowing upload.
-    Returns (True, None) if clean, (False, error_msg) if malicious/suspicious or error.
+    Security scan bypass - Always returns clean as requested.
     """
-    api_key = os.getenv("VIRUSTOTAL_API_KEY")
-    if not api_key:
-        return False, "VirusTotal API key not configured"
-
-    headers = {"x-apikey": api_key}
-    
-    # Calculate SHA-256
-    original_pos = file_stream.tell()
-    file_stream.seek(0)
-    file_bytes = file_stream.read()
-    file_hash = hashlib.sha256(file_bytes).hexdigest()
-    
-    try:
-        # Check if file exists in VirusTotal
-        check_url = f"https://www.virustotal.com/api/v3/files/{file_hash}"
-        check_res = requests.get(check_url, headers=headers, timeout=10)
-        
-        if check_res.status_code == 200:
-            # File already analyzed
-            stats = check_res.json().get("data", {}).get("attributes", {}).get("last_analysis_stats", {})
-            malicious = stats.get("malicious", 0)
-            suspicious = stats.get("suspicious", 0)
-            
-            file_stream.seek(original_pos)
-            if malicious > 0 or suspicious > 0:
-                return False, "Upload blocked due to security reasons"
-            return True, None
-            
-        elif check_res.status_code == 404:
-            # File not found, need to upload
-            url = "https://www.virustotal.com/api/v3/files"
-            file_stream.seek(0)
-            files = {"file": ("upload_img", file_stream, "application/octet-stream")}
-            
-            upload_res = requests.post(url, headers=headers, files=files, timeout=15)
-            
-            if upload_res.status_code == 200:
-                data = upload_res.json()
-                analysis_id = data.get("data", {}).get("id")
-                
-                # Poll for result
-                analysis_url = f"https://www.virustotal.com/api/v3/analyses/{analysis_id}"
-                for _ in range(6):
-                    time.sleep(3)
-                    poll_res = requests.get(analysis_url, headers=headers, timeout=10)
-                    if poll_res.status_code == 200:
-                        poll_data = poll_res.json()
-                        status = poll_data.get("data", {}).get("attributes", {}).get("status")
-                        if status == "completed":
-                            stats = poll_data.get("data", {}).get("attributes", {}).get("stats", {})
-                            malicious = stats.get("malicious", 0)
-                            suspicious = stats.get("suspicious", 0)
-                            
-                            file_stream.seek(original_pos)
-                            if malicious > 0 or suspicious > 0:
-                                return False, "Upload blocked due to security reasons"
-                            return True, None
-                
-                file_stream.seek(original_pos)
-                return False, "Upload blocked due to security reasons" # Treat timeout as failure/reject
-            else:
-                file_stream.seek(original_pos)
-                return False, "Upload blocked due to security reasons"
-                
-        else:
-            file_stream.seek(original_pos)
-            return False, "Upload blocked due to security reasons"
-
-    except Exception as e:
-        file_stream.seek(original_pos)
-        return False, "Upload blocked due to security reasons"
+    return True, None
 
 
 # ============== MIDDLEWARE (SECURITY) ==============
@@ -642,7 +579,7 @@ def upload_file():
             # Manual history record and credit deduction from existing logic
             conn = get_db_connection()
             try:
-                with conn.cursor() as cursor:
+                with get_db_cursor(conn) as cursor:
                     cursor.execute('''
                         INSERT INTO history (user_id, original_filename, filename, width, height, processing_time, quality_score, status)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
@@ -691,10 +628,16 @@ def download_file(filename):
 @app.route('/static/results/<filename>')
 @login_required
 def serve_colorized(filename):
+    # Ensure folder exists
+    if not os.path.exists(COLORIZED_FOLDER):
+        os.makedirs(COLORIZED_FOLDER, exist_ok=True)
     file_path = os.path.join(COLORIZED_FOLDER, filename)
     if os.path.exists(file_path):
         return send_file(file_path)
-    return jsonify({'error': 'File not found'}), 404
+    # Check if we should try Cloudinary fallback here? 
+    # For now, just return 404 but with more info
+    print(f"⚠️ STATIC FILE NOT FOUND: {file_path}")
+    return jsonify({'error': 'File not found', 'path': file_path}), 404
 
 @app.route('/dashboard')
 @permission_required('view_own_history')
@@ -772,8 +715,8 @@ def admin_users():
     try:
         users = get_all_users()
         for u in users:
-            if u.get('created_at'): u['created_at'] = u['created_at'].isoformat()
-            if u.get('last_activity'): u['last_activity'] = u['last_activity'].isoformat()
+            if u.get('created_at'): u['created_at'] = safe_isoformat(u['created_at'])
+            if u.get('last_activity'): u['last_activity'] = safe_isoformat(u['last_activity'])
         return jsonify(users)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -792,7 +735,7 @@ def admin_security():
     try:
         attempts = get_recent_login_attempts(limit=100)
         for a in attempts:
-            if a.get('attempted_at'): a['attempted_at'] = a['attempted_at'].isoformat()
+            if a.get('attempted_at'): a['attempted_at'] = safe_isoformat(a['attempted_at'])
         return jsonify(attempts)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -804,8 +747,8 @@ def admin_audit():
         from auth import get_db_connection
         conn = get_db_connection()
         try:
-            from psycopg2.extras import RealDictCursor
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            
+            with get_db_cursor(conn) as cur:
                 cur.execute("""
                     SELECT a.id, a.admin_id, a.action, a.target_user_id,
                            a.details, a.performed_at
@@ -816,7 +759,7 @@ def admin_audit():
                 rows = [dict(r) for r in cur.fetchall()]
             for r in rows:
                 if r.get('performed_at'):
-                    r['performed_at'] = r['performed_at'].isoformat()
+                    r['performed_at'] = safe_isoformat(r['performed_at'])
             return jsonify(rows)
         finally:
             conn.close()

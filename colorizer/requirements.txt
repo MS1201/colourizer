@@ -1,0 +1,15 @@
+flask
+flask-cors
+flask-login
+werkzeug
+opencv-python-headless
+numpy
+psycopg2-binary
+pyotp
+qrcode
+Pillow
+python-dotenv
+requests
+gunicorn
+psutil
+cloudinary

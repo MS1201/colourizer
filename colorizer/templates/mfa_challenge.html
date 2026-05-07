@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Two-Factor Authentication | AI Image Colorizer</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="auth-page">
+    <div class="auth-container">
+        <div class="auth-card">
+            <div class="auth-logo">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+                <h1>AI Image Colorizer</h1>
+            </div>
+
+            <div class="auth-header">
+                <h2>Secure Login</h2>
+                <p>Enter the 6-digit code from your authenticator app or a backup code.</p>
+            </div>
+
+            {% if error %}
+            <div class="auth-message error">
+                <span>{{ error }}</span>
+            </div>
+            {% endif %}
+
+            <form class="auth-form" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="form-group">
+                    <label for="code">Authentication Code</label>
+                    <input type="text" id="code" name="code" placeholder="000000" required autofocus autocomplete="one-time-code">
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-block">Verify & Sign In</button>
+            </form>
+
+            <div class="auth-footer">
+                <p><a href="/logout">Cancel and Sign Out</a></p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
