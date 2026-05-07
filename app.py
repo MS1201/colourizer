@@ -18,6 +18,7 @@ from werkzeug.utils import secure_filename
 from flask_login import login_required, login_user, logout_user, current_user
 from dotenv import load_dotenv
 from PIL import Image as PilImage
+import base64
 
 # Load environment variables
 load_dotenv()
@@ -95,7 +96,11 @@ def cleanup_storage(max_age_seconds=600):
     Delete files older than max_age_seconds to free up disk space.
     Critical for Render Free Tier which has limited ephemeral storage.
     """
-    for folder in [UPLOAD_FOLDER, COLORIZED_FOLDER]:
+    folders_to_clean = [UPLOAD_FOLDER]
+    if HAS_CLOUDINARY:
+        folders_to_clean.append(COLORIZED_FOLDER)
+        
+    for folder in folders_to_clean:
         try:
             now = time.time()
             for filename in os.listdir(folder):
@@ -615,6 +620,17 @@ def upload_file():
         if success:
             quality_score = result
             
+            # Generate base64 data URL for immediate display
+            output_data_url = None
+            try:
+                with open(output_path, 'rb') as img_file:
+                    img_bytes = img_file.read()
+                    ext = os.path.splitext(output_path)[1].lower()
+                    mime = {'.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.bmp': 'image/bmp'}.get(ext, 'image/jpeg')
+                    output_data_url = f"data:{mime};base64,{base64.b64encode(img_bytes).decode('utf-8')}"
+            except Exception as e:
+                print(f"Base64 encoding error: {e}")
+            
             # Cloudinary Upload (Removes local size limits)
             final_url = f'/static/results/{output_filename}'
             if HAS_CLOUDINARY:
@@ -661,6 +677,7 @@ def upload_file():
                 'success': True, 
                 'input_url': f'/static/uploads/{filename}',
                 'output_url': final_url,
+                'output_data_url': output_data_url,
                 'filename': output_filename, 
                 'original_filename': original_filename,
                 'processing_time': round(processing_time, 2), 
@@ -689,7 +706,6 @@ def download_file(filename):
     return jsonify({'error': 'File not found'}), 404
 
 @app.route('/static/results/<filename>')
-@login_required
 def serve_colorized(filename):
     file_path = os.path.join(COLORIZED_FOLDER, filename)
     if os.path.exists(file_path):

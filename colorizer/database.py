@@ -151,7 +151,8 @@ def init_db():
                     processing_time_seconds REAL,
                     quality_score REAL,
                     status TEXT,
-                    error_message TEXT
+                    error_message TEXT,
+                    output_url TEXT
                 )
             ''')
 

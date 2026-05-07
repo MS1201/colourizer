@@ -145,7 +145,13 @@ async function processFile(file) {
         if (originalImage) originalImage.src = URL.createObjectURL(file);
         // Use the output_url from server (Cloudinary URL when cloud storage is active)
         currentOutputUrl = data.output_url || `/static/results/${data.filename}`;
-        if (colorizedImage) colorizedImage.src = currentOutputUrl + (currentOutputUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
+        if (colorizedImage) {
+            if (data.output_data_url) {
+                colorizedImage.src = data.output_data_url;
+            } else {
+                colorizedImage.src = currentOutputUrl + (currentOutputUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
+            }
+        }
 
         // Update stats
         if (statTime) statTime.textContent = data.processing_time || '2.1s';
